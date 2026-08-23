@@ -1,0 +1,16 @@
+# Known process-lifetime allocations in the SDL video stack.
+#
+# SDL2 may be provided by the SDL3 compatibility layer.  On Wayland, window
+# decorations can also pull in libdecor/GTK, while renderer setup goes through
+# Mesa's EGL/GLX and DRI components.
+leak:libSDL
+leak:libdecor
+leak:libEGL_mesa
+leak:libGLX_mesa
+leak:*_dri.so
+
+# Font discovery is started by libdecor/GTK and may outlive this short-running
+# process.  Mesa can also allocate through anonymous JIT-compiled code, which
+# LeakSanitizer reports without a module name.
+leak:fc_thread_func
+leak:<unknown module>
