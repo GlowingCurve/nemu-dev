@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-import analyze_logs as single
+import analyze_single as single
 from _analysis_core import run_analysis, run_cli
 
 BATCH_SIZE = 8

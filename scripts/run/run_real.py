@@ -32,6 +32,7 @@ from _common import (  # noqa: E402
 )
 from _run_config import (  # noqa: E402
     add_run_config_arguments,
+    copy_compile_flags,
     make_run_command,
     resolve_run_config,
 )
@@ -65,6 +66,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     config = resolve_run_config(args)
+    copy_compile_flags(config)
 
     # Check the statistics dependency before starting a potentially long run.
     student_t_critical_99(MIN_RUNS - WARMUP_RUNS)
