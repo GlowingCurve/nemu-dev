@@ -68,8 +68,16 @@ def capture_snapshot(git_root: Path) -> GitSnapshot:
     head = _git(["rev-parse", "HEAD"], git_root).strip()
     if not head:
         raise GitError("git rev-parse returned an empty HEAD hash")
+    _git(["add", "-N", "--", "."], git_root)
     diff = _git(
         ["diff", "--binary", "--full-index", "--no-ext-diff", "HEAD", "--"],
         git_root,
     )
     return GitSnapshot(root=git_root, head=head, diff=diff)
+
+
+def write_diff_file(path: Path, diff: str) -> None:
+    try:
+        path.write_text(diff, encoding="utf-8", newline="")
+    except (OSError, UnicodeError, ValueError) as error:
+        raise GitError(f"cannot write Git diff {path}: {error}") from error

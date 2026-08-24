@@ -11,7 +11,9 @@ class RunDirectories:
     data: Path
     raw: Path
     processed: Path
+    git_diff: Path
     relative_data: str
+    relative_git_diff: str
 
 
 def validate_id(experiment_id: str) -> None:
@@ -63,8 +65,10 @@ def plan_directories(
     data_root = resolve_data_root(git_root, configured_data_root)
 
     data = data_root / experiment_id
+    git_diff = data / "git.diff"
     try:
         relative_data = data.relative_to(git_root).as_posix()
+        relative_git_diff = git_diff.relative_to(git_root).as_posix()
     except ValueError as error:
         raise DirectoryError(
             f"data directory must be inside Git root: {data}"
@@ -79,7 +83,9 @@ def plan_directories(
         data=data,
         raw=data / "raw",
         processed=data / "processed",
+        git_diff=git_diff,
         relative_data=relative_data,
+        relative_git_diff=relative_git_diff,
     )
 
 

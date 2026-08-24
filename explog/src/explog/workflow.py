@@ -8,7 +8,7 @@ from pathlib import Path
 from explog.config import load_config
 from explog.directories import create_directories, plan_directories, validate_id
 from explog.errors import LogError
-from explog.git import capture_snapshot, find_git_root
+from explog.git import capture_snapshot, find_git_root, write_diff_file
 from explog.log import append_record, read_log
 from explog.scripts import run_experiment_scripts, run_processing_scripts
 
@@ -19,7 +19,7 @@ class ExperimentNode:
     parent_id: str | None
     message: str
     git_commit: str
-    git_diff: str
+    git_diff_path: str
     data_dir: str
 
 
@@ -64,6 +64,7 @@ def run_experiment(
 
     snapshot = capture_snapshot(git_root)
     create_directories(directories)
+    write_diff_file(directories.git_diff, snapshot.diff)
     run_experiment_scripts(config.experiment_scripts, directories.raw, git_root)
     run_processing_scripts(
         config.data_processing_scripts,
@@ -77,7 +78,7 @@ def run_experiment(
         parent_id=parent_id,
         message=message,
         git_commit=snapshot.head,
-        git_diff=snapshot.diff,
+        git_diff_path=directories.relative_git_diff,
         data_dir=directories.relative_data,
     )
     append_record(log_path, asdict(node))

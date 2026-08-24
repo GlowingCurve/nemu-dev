@@ -6,8 +6,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import run_git
 
-from explog.errors import DirectoryError, LogError, ScriptError
+from explog.errors import DirectoryError, GitError, LogError, ScriptError
 from explog.log import read_log
 from explog.workflow import generate_id, run_experiment
 
@@ -85,8 +86,10 @@ def test_custom_id_parent_and_relative_posix_data_dir(
     assert root.id == "root α + #"
     assert child.parent_id == root.id
     assert root.data_dir == "experiment-data/root α + #"
+    assert root.git_diff_path == "experiment-data/root α + #/git.diff"
     assert (git_repo / root.data_dir / "raw").is_dir()
     assert (git_repo / root.data_dir / "processed").is_dir()
+    assert (git_repo / root.git_diff_path).is_file()
     assert [record["id"] for record in read_log(log_path)] == [root.id, child.id]
 
 
@@ -204,10 +207,70 @@ with record_file.open("a", encoding="utf-8") as stream:
             "parent_id": None,
             "message": "message",
             "git_commit": node.git_commit,
-            "git_diff": node.git_diff,
+            "git_diff_path": "experiment-data/successful/git.diff",
             "data_dir": "experiment-data/successful",
         }
     ]
+
+
+def test_git_diff_is_written_to_experiment_directory_and_logged(
+    git_repo: Path, config_file: Path
+) -> None:
+    (git_repo / "tracked.txt").write_text("changed\n", encoding="utf-8")
+    (git_repo / "untracked.txt").write_text("new file\n", encoding="utf-8")
+    log_path = git_repo / "log.jsonl"
+
+    node = run_empty(git_repo, config_file, log_path, "with-diff")
+
+    assert node.git_diff_path == "experiment-data/with-diff/git.diff"
+    diff = (git_repo / node.git_diff_path).read_text(encoding="utf-8")
+    assert "+changed" in diff
+    assert "untracked.txt" in diff
+    assert "+new file" in diff
+    record = read_log(log_path)[0]
+    assert record["git_diff_path"] == node.git_diff_path
+    assert "git_diff" not in record
+
+
+def test_clean_worktree_writes_empty_git_diff(
+    git_repo: Path, config_file: Path
+) -> None:
+    run_git(git_repo, "add", config_file.name)
+    run_git(git_repo, "commit", "-qm", "add config")
+
+    node = run_empty(git_repo, config_file, git_repo / "log.jsonl", "clean")
+
+    assert (git_repo / node.git_diff_path).read_bytes() == b""
+
+
+def test_diff_write_failure_keeps_directory_and_does_not_run_scripts_or_log(
+    git_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = git_repo / "should-not-run"
+    mark = make_script(
+        git_repo,
+        "mark.py",
+        "import pathlib, sys\npathlib.Path(sys.argv[1]).touch()\n",
+    )
+    config = git_repo / "explog.toml"
+    write_config(
+        config,
+        experiment_scripts=[[sys.executable, str(mark), str(marker)]],
+        processing_scripts=[],
+    )
+
+    def fail_write(_path: Path, _diff: str) -> None:
+        raise GitError("cannot write Git diff")
+
+    monkeypatch.setattr("explog.workflow.write_diff_file", fail_write)
+    log_path = git_repo / "log.jsonl"
+
+    with pytest.raises(GitError, match="cannot write Git diff"):
+        run_empty(git_repo, config, log_path, "failed-write")
+
+    assert (git_repo / "experiment-data" / "failed-write").is_dir()
+    assert not marker.exists()
+    assert not log_path.exists()
 
 
 @pytest.mark.parametrize("failure_stage", ["experiment", "processing"])
@@ -242,5 +305,6 @@ def test_script_failure_keeps_data_and_does_not_write_log(
         run_empty(git_repo, config, log_path, "failed")
 
     assert (git_repo / "experiment-data" / "failed").is_dir()
+    assert (git_repo / "experiment-data" / "failed" / "git.diff").is_file()
     assert not marker.exists()
     assert not log_path.exists()

@@ -38,6 +38,7 @@ data_processing_scripts = [["python3", "scripts/process.py"]]
 ```text
 experiment-data/
 └── baseline/
+    ├── git.diff
     ├── raw/
     └── processed/
 ```
@@ -64,7 +65,7 @@ experiment-data/
 explog init --config explog.toml --log experiments.jsonl
 ```
 
-这两个选项可以省略,默认值分别是当前目录下的 `explog.toml` 和 `experiments.jsonl`。`init` 会检查当前目录属于一个已有 `HEAD` 的 Git 仓库、配置合法、脚本的可执行程序可用、日志合法且 `data_root` 位于仓库内。工作区中的已跟踪修改和未跟踪文件会被报告,但不会阻止初始化;未跟踪文件不会包含在实验记录的 Git diff 中。
+这两个选项可以省略,默认值分别是当前目录下的 `explog.toml` 和 `experiments.jsonl`。`init` 会检查当前目录属于一个已有 `HEAD` 的 Git 仓库、配置合法、脚本的可执行程序可用、日志合法且 `data_root` 位于仓库内。工作区中的已跟踪修改和未跟踪文件会被报告,但不会阻止初始化。
 
 检查全部通过后,`init` 会按需创建日志的父目录、`data_root` 和一个空 JSONL 日志。它不会创建实验 ID、`raw` 或 `processed` 目录。该命令可以安全地重复执行:已有的合法日志、数据目录及其中内容都会原样保留。已有日志或路径非法时,初始化会失败而不会覆盖它们。
 
@@ -124,14 +125,14 @@ explog \
 - `parent_id`:父节点的 ID,根节点为 JSON `null`。
 - `message`:通过 `--message` 传入的原始值。
 - `git_commit`:在创建数据目录、运行脚本之前捕获的 `HEAD` 完整哈希。
-- `git_diff`:`git diff --binary --full-index --no-ext-diff HEAD --` 的输出。它表示已跟踪文件相对于 `HEAD` 的最终已暂存与未暂存状态;未跟踪文件不包含在内。
+- `git_diff_path`:Git diff 输出文件的路径,以相对于 Git 根目录的 POSIX 路径表示。该文件固定保存为实验数据目录下的 `git.diff`。生成 diff 前会先在仓库根目录执行 `git add -N -- .`,再执行 `git diff --binary --full-index --no-ext-diff HEAD --`,因此 diff 包括已暂存修改、未暂存修改和未被忽略的未跟踪文件。`git add -N` 只在索引中登记未跟踪文件的路径,不会暂存其内容。
 - `data_dir`:运行目录,以相对于 Git 根目录的 POSIX 路径表示,与宿主系统的路径写法无关。
 
-例如,上面两条命令会追加如下形式的行(其中的哈希和 diff 仅为示意):
+例如,上面两条命令会追加如下形式的行(其中的哈希和路径仅为示意):
 
 ```jsonl
-{"id":"baseline","parent_id":null,"message":"Initial compiler settings","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff":"","data_dir":"experiment-data/baseline"}
-{"id":"larger-batch","parent_id":"baseline","message":"Increase the batch size","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff":"diff --git a/settings.txt b/settings.txt\nindex 78981922613b2afb6025042ff6bd878ac1994e85..61780798228d17af2d34fce4cfbdf35556832472 100644\n--- a/settings.txt\n+++ b/settings.txt\n@@ -1 +1 @@\n-small\n+large\n","data_dir":"experiment-data/larger-batch"}
+{"id":"baseline","parent_id":null,"message":"Initial compiler settings","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/baseline/git.diff","data_dir":"experiment-data/baseline"}
+{"id":"larger-batch","parent_id":"baseline","message":"Increase the batch size","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/larger-batch/git.diff","data_dir":"experiment-data/larger-batch"}
 ```
 
 ## 失败行为
@@ -139,12 +140,13 @@ explog \
 工作流程的步骤顺序是刻意编排的:
 
 1. 加载并校验配置、仓库、日志关系、ID 和路径。
-2. 捕获 Git `HEAD` 和已跟踪文件的 diff。
+2. 执行 `git add -N -- .`,捕获 Git `HEAD` 和工作区 diff。
 3. 创建运行目录、`raw` 和 `processed` 目录。
-4. 运行每个实验脚本。
-5. 运行每个处理脚本。
-6. 追加一条 JSONL 节点。
+4. 将 diff 写入运行目录下的 `git.diff`。
+5. 运行每个实验脚本。
+6. 运行每个处理脚本。
+7. 追加一条 JSONL 节点。
 
-任何非法的配置或日志、缺失的父节点、重复或不安全的 ID、数据目录冲突、Git 错误、目录错误,或脚本非零退出、无法执行,都会中止本次运行。只有当所有前置步骤都成功时,才会追加日志节点。如果失败发生在运行目录创建之后,该目录及已写入的任何数据都会被有意保留以供诊断;`explog` 不会回滚它们。
+任何非法的配置或日志、缺失的父节点、重复或不安全的 ID、数据目录冲突、Git 错误、目录错误,或脚本非零退出、无法执行,都会中止本次运行。只有当所有前置步骤都成功时,才会追加日志节点。如果失败发生在运行目录创建之后,该目录、已写入的 `git.diff` 及任何数据都会被有意保留以供诊断;`explog` 不会回滚它们。
 
 该工具不提供查询子命令、数据库、索引或锁服务。
