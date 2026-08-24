@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,21 @@ def test_custom_id_parent_and_relative_posix_data_dir(
     assert (git_repo / root.data_dir / "processed").is_dir()
     assert (git_repo / root.git_diff_path).is_file()
     assert [record["id"] for record in read_log(log_path)] == [root.id, child.id]
+
+
+def test_node_creation_timestamp_is_logged_in_utc(
+    git_repo: Path, config_file: Path
+) -> None:
+    log_path = git_repo / "experiments.jsonl"
+    before = datetime.now(UTC)
+
+    node = run_empty(git_repo, config_file, log_path, "timestamped")
+
+    after = datetime.now(UTC)
+    timestamp = datetime.fromisoformat(node.timestamp)
+    assert node.timestamp.endswith("Z")
+    assert before <= timestamp <= after
+    assert read_log(log_path)[0]["timestamp"] == node.timestamp
 
 
 @pytest.mark.parametrize("bad_id", ["", ".", "..", "a/b", "a\\b", "bad\nname"])
@@ -205,6 +221,7 @@ with record_file.open("a", encoding="utf-8") as stream:
         {
             "id": "successful",
             "parent_id": None,
+            "timestamp": node.timestamp,
             "message": "message",
             "git_commit": node.git_commit,
             "git_diff_path": "experiment-data/successful/git.diff",

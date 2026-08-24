@@ -123,6 +123,7 @@ explog \
 
 - `id`:自动生成或用户指定的实验 ID。
 - `parent_id`:父节点的 ID,根节点为 JSON `null`。
+- `timestamp`:创建节点时的 UTC 时间,采用带 `Z` 后缀、精确到微秒的 ISO 8601 时间戳。
 - `message`:通过 `--message` 传入的原始值。
 - `git_commit`:在创建数据目录、运行脚本之前捕获的 `HEAD` 完整哈希。
 - `git_diff_path`:Git diff 输出文件的路径,以相对于 Git 根目录的 POSIX 路径表示。该文件固定保存为实验数据目录下的 `git.diff`。生成 diff 前会先在仓库根目录执行 `git add -N -- .`,再执行 `git diff --binary --full-index --no-ext-diff HEAD --`,因此 diff 包括已暂存修改、未暂存修改和未被忽略的未跟踪文件。`git add -N` 只在索引中登记未跟踪文件的路径,不会暂存其内容。
@@ -131,8 +132,8 @@ explog \
 例如,上面两条命令会追加如下形式的行(其中的哈希和路径仅为示意):
 
 ```jsonl
-{"id":"baseline","parent_id":null,"message":"Initial compiler settings","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/baseline/git.diff","data_dir":"experiment-data/baseline"}
-{"id":"larger-batch","parent_id":"baseline","message":"Increase the batch size","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/larger-batch/git.diff","data_dir":"experiment-data/larger-batch"}
+{"id":"baseline","parent_id":null,"timestamp":"2026-08-24T12:34:56.123456Z","message":"Initial compiler settings","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/baseline/git.diff","data_dir":"experiment-data/baseline"}
+{"id":"larger-batch","parent_id":"baseline","timestamp":"2026-08-24T12:45:00.654321Z","message":"Increase the batch size","git_commit":"0123456789abcdef0123456789abcdef01234567","git_diff_path":"experiment-data/larger-batch/git.diff","data_dir":"experiment-data/larger-batch"}
 ```
 
 ## 失败行为

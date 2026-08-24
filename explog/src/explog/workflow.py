@@ -17,6 +17,7 @@ from explog.scripts import run_experiment_scripts, run_processing_scripts
 class ExperimentNode:
     id: str
     parent_id: str | None
+    timestamp: str
     message: str
     git_commit: str
     git_diff_path: str
@@ -27,6 +28,10 @@ def generate_id(timestamp_seconds: int | None = None) -> str:
     value = int(time.time()) if timestamp_seconds is None else timestamp_seconds
     moment = datetime.fromtimestamp(value, UTC)
     return f"{moment:%Y%m%dT%H%M%SZ}"
+
+
+def _creation_timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _validate_log_state(
@@ -76,6 +81,7 @@ def run_experiment(
     node = ExperimentNode(
         id=chosen_id,
         parent_id=parent_id,
+        timestamp=_creation_timestamp(),
         message=message,
         git_commit=snapshot.head,
         git_diff_path=directories.relative_git_diff,
