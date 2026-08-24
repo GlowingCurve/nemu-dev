@@ -15,7 +15,7 @@ SUPPORTED_ARCHES = ("riscv32-nemu", "riscv32-nemudev")
 @dataclass(frozen=True)
 class RunConfig:
     arch: str
-    log_root: Path
+    output: Path
 
 
 def make_run_command(microbench: str, arch: str) -> list[str]:
@@ -31,7 +31,7 @@ def add_run_config_arguments(parser: argparse.ArgumentParser) -> None:
         help="make ARCH value (required on the command line)",
     )
     parser.add_argument(
-        "--log-root",
+        "--output",
         metavar="DIR",
         type=Path,
         required=True,
@@ -49,13 +49,13 @@ def resolve_run_config(args: argparse.Namespace) -> RunConfig:
             f"Error: unsupported ARCH {arch!r}; choose one of: {supported}.", 2
         )
 
-    configured_root = args.log_root
-    if configured_root is None:
-        raise ScriptError("Error: --log-root must be provided on the command line.", 2)
-    log_root = Path(configured_root).expanduser()
-    if not log_root.is_dir():
+    configured_output = args.output
+    if configured_output is None:
+        raise ScriptError("Error: --output must be provided on the command line.", 2)
+    output = Path(configured_output).expanduser()
+    if not output.is_dir():
         raise ScriptError(
-            f"Error: output directory does not exist or is not a directory: {log_root}",
+            f"Error: output directory does not exist or is not a directory: {output}",
             2,
         )
-    return RunConfig(arch=arch, log_root=log_root)
+    return RunConfig(arch=arch, output=output)

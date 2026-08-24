@@ -12,7 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
-from _benchmark_stability import (
+SCRIPT_DIR = Path(__file__).resolve().parent
+# The runners are executable files in a subdirectory; expose shared script helpers.
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from _benchmark_stability import (  # noqa: E402
     MAX_RUNS,
     MIN_RUNS,
     RMOE_THRESHOLD_PERCENT,
@@ -22,7 +26,7 @@ from _benchmark_stability import (
     rmoe_is_below_threshold,
     student_t_critical_99,
 )
-from _common import (
+from _common import (  # noqa: E402
     NEMU_CGROUP,
     ScriptError,
     average_frequency_mhz,
@@ -34,13 +38,12 @@ from _common import (
     read_text,
     sample_frequency,
 )
-from _run_config import (
+from _run_config import (  # noqa: E402
     add_run_config_arguments,
     make_run_command,
     resolve_run_config,
 )
 
-SCRIPT_DIR = Path(__file__).resolve().parent
 FREQ_SAMPLE_INTERVAL_SECONDS = 0.1
 
 
@@ -196,7 +199,7 @@ def main() -> int:
     if not microbench:
         die("MICROBENCH is not set.")
 
-    log_files = [config.log_root / f"log-{run}" for run in range(1, MAX_RUNS + 1)]
+    log_files = [config.output / f"log-{run}" for run in range(1, MAX_RUNS + 1)]
     existing_log = next(
         (log_file for log_file in log_files if log_file.exists()),
         None,
@@ -225,7 +228,7 @@ def main() -> int:
         f"samples, then require two-sided 99% RMOE < "
         f"{RMOE_THRESHOLD_PERCENT:g}%"
     )
-    print(f"Logs will be saved in: {config.log_root}", flush=True)
+    print(f"Logs will be saved in: {config.output}", flush=True)
 
     failed = 0
     attempts = 0
