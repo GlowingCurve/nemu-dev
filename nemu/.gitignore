@@ -9,5 +9,6 @@
 !README.md
 !Kconfig
 !/lsan.supp
+!/perf_profile.py
 include/config
 include/generated
