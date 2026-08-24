@@ -30,6 +30,14 @@ def test_read_missing_log_is_empty(tmp_path: Path) -> None:
     assert read_log(tmp_path / "missing.jsonl") == []
 
 
+def test_reject_broken_log_symlink(tmp_path: Path) -> None:
+    log_path = tmp_path / "broken.jsonl"
+    log_path.symlink_to(tmp_path / "missing.jsonl")
+
+    with pytest.raises(LogError, match="broken symbolic link"):
+        read_log(log_path)
+
+
 @pytest.mark.parametrize("content", ["\n", "not json\n", "[]\n", '{"x":1}\n'])
 def test_reject_invalid_log(tmp_path: Path, content: str) -> None:
     log_path = tmp_path / "bad.jsonl"

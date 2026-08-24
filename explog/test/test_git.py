@@ -2,7 +2,7 @@ from pathlib import Path
 
 from conftest import run_git
 
-from explog.git import capture_snapshot
+from explog.git import capture_snapshot, inspect_repository
 
 
 def test_snapshot_contains_full_head_and_staged_and_unstaged_changes(
@@ -32,3 +32,16 @@ def test_snapshot_contains_full_head_and_staged_and_unstaged_changes(
     )
     old_and_new = index_line.split()[1]
     assert all(len(value) == len(snapshot.head) for value in old_and_new.split(".."))
+
+
+def test_repository_status_counts_tracked_and_untracked_changes(
+    git_repo: Path,
+) -> None:
+    (git_repo / "tracked.txt").write_text("changed\n", encoding="utf-8")
+    (git_repo / "untracked.txt").write_text("new\n", encoding="utf-8")
+
+    status = inspect_repository(git_repo)
+
+    assert status.root == git_repo
+    assert status.tracked_changes == 1
+    assert status.untracked_files == 1

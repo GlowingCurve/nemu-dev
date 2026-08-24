@@ -30,10 +30,7 @@ def validate_id(experiment_id: str) -> None:
         )
 
 
-def plan_directories(
-    git_root: Path, configured_data_root: Path, experiment_id: str
-) -> RunDirectories:
-    validate_id(experiment_id)
+def resolve_data_root(git_root: Path, configured_data_root: Path) -> Path:
     try:
         if configured_data_root.is_absolute():
             data_root = configured_data_root.resolve()
@@ -56,6 +53,14 @@ def plan_directories(
             raise DirectoryError(f"data_root is not a directory: {data_root}")
     except OSError as error:
         raise DirectoryError(f"cannot inspect data_root: {data_root}") from error
+    return data_root
+
+
+def plan_directories(
+    git_root: Path, configured_data_root: Path, experiment_id: str
+) -> RunDirectories:
+    validate_id(experiment_id)
+    data_root = resolve_data_root(git_root, configured_data_root)
 
     data = data_root / experiment_id
     try:
@@ -76,6 +81,21 @@ def plan_directories(
         processed=data / "processed",
         relative_data=relative_data,
     )
+
+
+def create_data_root(data_root: Path) -> bool:
+    try:
+        data_root.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        try:
+            if data_root.is_dir():
+                return False
+        except OSError as error:
+            raise DirectoryError(f"cannot inspect data_root: {data_root}") from error
+        raise DirectoryError(f"data_root is not a directory: {data_root}") from None
+    except OSError as error:
+        raise DirectoryError(f"cannot create data_root {data_root}: {error}") from error
+    return True
 
 
 def create_directories(directories: RunDirectories) -> None:

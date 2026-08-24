@@ -14,6 +14,14 @@ class GitSnapshot:
     diff: str
 
 
+@dataclass(frozen=True)
+class RepositoryStatus:
+    root: Path
+    head: str
+    tracked_changes: int
+    untracked_files: int
+
+
 def _git(arguments: list[str], cwd: Path) -> str:
     try:
         result = subprocess.run(
@@ -38,6 +46,22 @@ def find_git_root(cwd: Path) -> Path:
     if not root:
         raise GitError("git rev-parse returned an empty repository root")
     return Path(root).resolve()
+
+
+def inspect_repository(git_root: Path) -> RepositoryStatus:
+    head = _git(["rev-parse", "HEAD"], git_root).strip()
+    if not head:
+        raise GitError("git rev-parse returned an empty HEAD hash")
+
+    porcelain = _git(["status", "--porcelain=v1", "--untracked-files=all"], git_root)
+    lines = porcelain.splitlines()
+    untracked_files = sum(line.startswith("?? ") for line in lines)
+    return RepositoryStatus(
+        root=git_root,
+        head=head,
+        tracked_changes=len(lines) - untracked_files,
+        untracked_files=untracked_files,
+    )
 
 
 def capture_snapshot(git_root: Path) -> GitSnapshot:
