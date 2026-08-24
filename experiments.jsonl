@@ -1,1 +1,4 @@
 {"id":"O2","parent_id":null,"timestamp":"2026-08-24T12:22:55.422909Z","message":"enable O2","git_commit":"c2032eac7fb3aabcac6b5d0380a55243f9d55d35","git_diff_path":"experiment-data/O2/git.diff","data_dir":"experiment-data/O2"}
+{"id":"lto","parent_id":"O2","timestamp":"2026-08-24T13:09:46.553643Z","message":"add flto","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/lto/git.diff","data_dir":"experiment-data/lto"}
+{"id":"O3","parent_id":"lto","timestamp":"2026-08-24T13:23:59.717544Z","message":"03 optimization","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/O3/git.diff","data_dir":"experiment-data/O3"}
+{"id":"device_update","parent_id":"O3","timestamp":"2026-08-24T14:10:01.211507Z","message":"remove device_update from execution","git_commit":"57d0cb5bf1b5ba74e00ce26c43a007520e9a819f","git_diff_path":"experiment-data/device_update/git.diff","data_dir":"experiment-data/device_update"}
