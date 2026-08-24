@@ -7,14 +7,15 @@ from pathlib import Path
 
 from explog.errors import ExplogError
 from explog.initialization import InitializationResult, initialize_environment
+from explog.listing import format_nodes, list_nodes
 from explog.workflow import run_experiment
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="explog",
+def _add_run_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "run",
+        help="run scripts and record an experiment",
         description="Run scripts and append a Git-aware experiment node to JSONL.",
-        epilog="Initialize an environment with: explog init --help",
     )
     parser.add_argument("--config", required=True, type=Path, help="TOML config path")
     parser.add_argument("--log", required=True, type=Path, help="JSONL log path")
@@ -25,12 +26,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--id", dest="experiment_id", metavar="ID", help="custom experiment ID"
     )
-    return parser
+    parser.set_defaults(handler=_run_experiment)
 
 
-def build_init_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="explog init",
+def _add_init_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "init",
+        help="check and initialize an explog environment",
         description="Check and initialize an explog environment.",
     )
     parser.add_argument(
@@ -45,6 +47,33 @@ def build_init_parser() -> argparse.ArgumentParser:
         default=Path("experiments.jsonl"),
         help="JSONL log path (default: experiments.jsonl)",
     )
+    parser.set_defaults(handler=_run_init)
+
+
+def _add_list_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "list",
+        help="list experiments in chronological order",
+        description="List experiments from a JSONL log in chronological order.",
+    )
+    parser.add_argument(
+        "--log",
+        type=Path,
+        default=Path("experiments.jsonl"),
+        help="JSONL log path (default: experiments.jsonl)",
+    )
+    parser.set_defaults(handler=_run_list)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="explog",
+        description="Run and inspect Git-aware experiments recorded in JSONL.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    _add_run_parser(subparsers)
+    _add_init_parser(subparsers)
+    _add_list_parser(subparsers)
     return parser
 
 
@@ -68,36 +97,38 @@ def _print_initialization(result: InitializationResult) -> None:
     print("explog environment is ready")
 
 
-def _run_init(argv: Sequence[str]) -> int:
-    arguments = build_init_parser().parse_args(argv)
-    try:
-        result = initialize_environment(
-            config_path=arguments.config,
-            log_path=arguments.log,
-        )
-    except ExplogError as error:
-        print(f"explog: error: {error}", file=sys.stderr)
-        return 1
+def _run_init(arguments: argparse.Namespace) -> int:
+    result = initialize_environment(
+        config_path=arguments.config,
+        log_path=arguments.log,
+    )
     _print_initialization(result)
     return 0
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    raw_arguments = list(sys.argv[1:] if argv is None else argv)
-    if raw_arguments and raw_arguments[0] == "init":
-        return _run_init(raw_arguments[1:])
+def _run_experiment(arguments: argparse.Namespace) -> int:
+    node = run_experiment(
+        config_path=arguments.config,
+        log_path=arguments.log,
+        message=arguments.message,
+        parent_id=arguments.parent_id,
+        experiment_id=arguments.experiment_id,
+    )
+    print(node.id)
+    return 0
 
-    arguments = build_parser().parse_args(raw_arguments)
+
+def _run_list(arguments: argparse.Namespace) -> int:
+    output = format_nodes(list_nodes(arguments.log))
+    if output:
+        print(output)
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = build_parser().parse_args(argv)
     try:
-        node = run_experiment(
-            config_path=arguments.config,
-            log_path=arguments.log,
-            message=arguments.message,
-            parent_id=arguments.parent_id,
-            experiment_id=arguments.experiment_id,
-        )
+        return arguments.handler(arguments)
     except ExplogError as error:
         print(f"explog: error: {error}", file=sys.stderr)
         return 1
-    print(node.id)
-    return 0

@@ -69,20 +69,22 @@ explog init --config explog.toml --log experiments.jsonl
 
 检查全部通过后,`init` 会按需创建日志的父目录、`data_root` 和一个空 JSONL 日志。它不会创建实验 ID、`raw` 或 `processed` 目录。该命令可以安全地重复执行:已有的合法日志、数据目录及其中内容都会原样保留。已有日志或路径非法时,初始化会失败而不会覆盖它们。
 
-配置中带路径的可执行程序相对于 Git 根目录检查,不带路径的程序从当前 `PATH` 查找。`init` 只检查每条命令的第一个 argv 元素,不会推断其余参数是否表示脚本文件。初始化是可选步骤;原有的实验运行命令仍可直接使用。
+配置中带路径的可执行程序相对于 Git 根目录检查,不带路径的程序从当前 `PATH` 查找。`init` 只检查每条命令的第一个 argv 元素,不会推断其余参数是否表示脚本文件。初始化是可选步骤;实验运行命令仍可直接使用。
 
 ## 用法
 
-命令格式是固定的:
+CLI 使用固定的子命令结构:
 
 ```text
-explog --config CONFIG --log LOG --message MESSAGE [--parent-id ID] [--id ID]
+explog run  --config CONFIG --log LOG --message MESSAGE [--parent-id ID] [--id ID]
+explog init [--config CONFIG] [--log LOG]
+explog list [--log LOG]
 ```
 
 使用自动生成的 ID 启动一个根实验:
 
 ```bash
-explog \
+explog run \
   --config explog.toml \
   --log experiments.jsonl \
   --message "Initial compiler settings"
@@ -91,7 +93,7 @@ explog \
 命令成功后会打印其 ID,例如 `20260823T132045Z`。自动生成的 ID 是精确到秒的 UTC 时间戳。使用 `--id` 可显式指定 ID:
 
 ```bash
-explog \
+explog run \
   --config explog.toml \
   --log experiments.jsonl \
   --message "Initial compiler settings" \
@@ -103,7 +105,7 @@ explog \
 将某个已有节点指定为父节点,即可创建一个后续实验:
 
 ```bash
-explog \
+explog run \
   --config explog.toml \
   --log experiments.jsonl \
   --message "Increase the batch size" \
@@ -114,6 +116,26 @@ explog \
 省略 `--parent-id` 会创建根节点。指定的父节点必须已经存在于同一日志中。
 
 `CONFIG` 和 `LOG` 遵循常规的命令行路径处理规则,以相对路径给出时相对于当前工作目录。直接运行实验时,日志文件的父目录必须已经存在;`explog init` 会按需创建它。
+
+## 查看日志
+
+按时间升序查看实验日志:
+
+```bash
+explog list --log experiments.jsonl
+```
+
+`--log` 可以省略,默认读取当前目录下的 `experiments.jsonl`。`list` 只读取日志:它不加载配置、不检查 Git 仓库,也不修改任何文件,因此可以在非 Git 目录中使用。日志为空时命令成功且不输出内容;日志文件不存在则报错。
+
+输出包含 `TIMESTAMP`、`ID`、`PARENT` 和 `MESSAGE` 四列。根节点的父项显示为 `-`,message 中的换行、回车和 Tab 分别显示为 `\\n`、`\\r` 和 `\\t`。排序时会解析每条记录的带时区 ISO 8601 时间戳并换算到 UTC;时间相同的节点保持它们在 JSONL 中的原始顺序。缺失、非法或不带时区的时间戳会使命令报错。
+
+例如:
+
+```text
+TIMESTAMP                    ID            PARENT    MESSAGE
+2026-08-24T12:34:56.123456Z  baseline      -         Initial compiler settings
+2026-08-24T12:45:00.654321Z  larger-batch  baseline  Increase the batch size
+```
 
 ## JSONL 记录
 
@@ -150,4 +172,4 @@ explog \
 
 任何非法的配置或日志、缺失的父节点、重复或不安全的 ID、数据目录冲突、Git 错误、目录错误,或脚本非零退出、无法执行,都会中止本次运行。只有当所有前置步骤都成功时,才会追加日志节点。如果失败发生在运行目录创建之后,该目录、已写入的 `git.diff` 及任何数据都会被有意保留以供诊断;`explog` 不会回滚它们。
 
-该工具不提供查询子命令、数据库、索引或锁服务。
+该工具不提供数据库、索引或锁服务。

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,18 +10,8 @@ from explog.directories import create_directories, plan_directories, validate_id
 from explog.errors import LogError
 from explog.git import capture_snapshot, find_git_root, write_diff_file
 from explog.log import append_record, read_log
+from explog.model import ExperimentNode
 from explog.scripts import run_experiment_scripts, run_processing_scripts
-
-
-@dataclass(frozen=True)
-class ExperimentNode:
-    id: str
-    parent_id: str | None
-    timestamp: str
-    message: str
-    git_commit: str
-    git_diff_path: str
-    data_dir: str
 
 
 def generate_id(timestamp_seconds: int | None = None) -> str:

@@ -6,14 +6,17 @@ from pathlib import Path
 from typing import Any
 
 from explog.errors import LogError
+from explog.model import ExperimentNode
 
 
-def read_log(path: Path) -> list[dict[str, Any]]:
+def read_log(path: Path, missing_ok: bool = True) -> list[dict[str, Any]]:
     try:
         if not path.exists():
             if path.is_symlink():
                 raise LogError(f"log path is a broken symbolic link: {path}")
-            return []
+            if missing_ok:
+                return []
+            raise LogError(f"log file does not exist: {path}")
         if not path.is_file():
             raise LogError(f"log path is not a regular file: {path}")
     except (OSError, ValueError) as error:
@@ -50,6 +53,43 @@ def read_log(path: Path) -> list[dict[str, Any]]:
     except OSError as error:
         raise LogError(f"cannot read log {path}: {error}") from error
     return records
+
+
+def _required_string(record: dict[str, Any], record_id: str, field: str) -> str:
+    if field not in record:
+        raise LogError(f"log record {record_id} is missing required field: {field}")
+    value = record[field]
+    if not isinstance(value, str):
+        raise LogError(f"log record {record_id} has non-string field: {field}")
+    return value
+
+
+def read_nodes(path: Path, missing_ok: bool = True) -> list[ExperimentNode]:
+    """Read and strictly validate experiment nodes from a JSONL log."""
+    nodes: list[ExperimentNode] = []
+    for record in read_log(path, missing_ok=missing_ok):
+        record_id = record["id"]
+        if "parent_id" not in record:
+            raise LogError(
+                f"log record {record_id} is missing required field: parent_id"
+            )
+        parent_id = record["parent_id"]
+        if parent_id is not None and not isinstance(parent_id, str):
+            raise LogError(
+                f"log record {record_id} has invalid field type: parent_id"
+            )
+        nodes.append(
+            ExperimentNode(
+                id=record_id,
+                parent_id=parent_id,
+                timestamp=_required_string(record, record_id, "timestamp"),
+                message=_required_string(record, record_id, "message"),
+                git_commit=_required_string(record, record_id, "git_commit"),
+                git_diff_path=_required_string(record, record_id, "git_diff_path"),
+                data_dir=_required_string(record, record_id, "data_dir"),
+            )
+        )
+    return nodes
 
 
 def append_record(path: Path, record: Mapping[str, Any]) -> None:
