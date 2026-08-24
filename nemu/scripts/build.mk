@@ -48,7 +48,8 @@ $(OBJ_DIR)/%.o: %.cc
 .PHONY: app clean
 
 app: $(BINARY)
-	@echo "$(CFLAGS)" > $(BUILD_DIR)/compiler_flags
+	@echo "$(CFLAGS)" > $(BUILD_DIR)/compile_cflags
+	@echo "$(LDFLAGS)" > $(BUILD_DIR)/compile_ldflags
 
 $(BINARY): $(OBJS) $(ARCHIVES)
 	@echo + LD $@
