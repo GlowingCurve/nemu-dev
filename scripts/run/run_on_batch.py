@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run CPU-sized MicroBench batches until scored-time statistics stabilize."""
+"""Run eight-way MicroBench batches until scored-time statistics stabilize."""
 
 from __future__ import annotations
 
@@ -17,11 +17,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from _benchmark_stability import (  # noqa: E402
-    MAX_RUNS,
-    MIN_RUNS,
     RMOE_THRESHOLD_PERCENT,
-    WARMUP_RUNS,
-    calculate_after_warmup,
+    calculate_rmoe99,
     extract_scored_time_ms,
     rmoe_is_below_threshold,
     student_t_critical_99,
@@ -45,6 +42,13 @@ from _run_config import (  # noqa: E402
 )
 
 FREQ_SAMPLE_INTERVAL_SECONDS = 0.1
+BATCH_SIZE = 8
+MIN_BATCH_COUNT = 3
+MAX_BATCH_COUNT = 16
+WARMUP_BATCH_COUNT = 1
+MIN_RUNS = MIN_BATCH_COUNT * BATCH_SIZE
+MAX_RUNS = MAX_BATCH_COUNT * BATCH_SIZE
+WARMUP_RUNS = WARMUP_BATCH_COUNT * BATCH_SIZE
 
 
 @dataclass
@@ -67,10 +71,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog=program_name(sys.argv[0]),
         description=(
-            "Run MicroBench in parallel CPU-sized batches for at least 15 and "
-            "at most 125 total runs. Discard the first 5 valid Scored time "
-            "samples and stop when the two-sided 99% RMOE of the remaining "
-            "samples is below 1%."
+            "Run MicroBench in eight-way parallel batches. Run at least 3 and "
+            "at most 16 batches, discard the first batch, and stop when the "
+            "two-sided 99% RMOE of the remaining samples is below 1%."
         ),
     )
     add_run_config_arguments(parser)
@@ -192,8 +195,12 @@ def main() -> int:
         if paired_cpu not in isolated_cpu_set:
             die(f"CPU{cpu} has no isolated CPU{paired_cpu} counterpart.")
 
-    batch_size = len(lower_cpus)
-    max_batch_count = (MAX_RUNS + batch_size - 1) // batch_size
+    if len(lower_cpus) < BATCH_SIZE:
+        die(
+            f"At least {BATCH_SIZE} isolated CPUs numbered below 16 are "
+            f"required; found {len(lower_cpus)}."
+        )
+    worker_cpus = lower_cpus[:BATCH_SIZE]
 
     microbench = os.environ.get("MICROBENCH")
     if not microbench:
@@ -216,51 +223,55 @@ def main() -> int:
     )
 
     print(f"Isolated CPUs: {effective_cpus}")
-    print(f"Worker CPUs: {' '.join(map(str, lower_cpus))}")
+    print(f"Worker CPUs: {' '.join(map(str, worker_cpus))}")
     print(f"ARCH: {config.arch}")
-    print(f"BATCH: {batch_size}")
+    print(f"BATCH: {BATCH_SIZE}")
     print(
-        f"Runs: minimum {MIN_RUNS}, maximum {MAX_RUNS} "
-        f"(at most {max_batch_count} batches)"
+        f"Batches: minimum {MIN_BATCH_COUNT}, maximum {MAX_BATCH_COUNT} "
+        f"({MIN_RUNS}-{MAX_RUNS} run attempts)"
     )
     print(
-        f"Stop condition: discard the first {WARMUP_RUNS} valid Scored time "
-        f"samples, then require two-sided 99% RMOE < "
+        f"Stop condition: discard batch 1 ({WARMUP_RUNS} runs), then require "
+        f"two-sided 99% RMOE < "
         f"{RMOE_THRESHOLD_PERCENT:g}%"
     )
     print(f"Logs will be saved in: {config.output}", flush=True)
 
     failed = 0
     attempts = 0
-    scored_times_ms: list[float] = []
+    valid_runs = 0
+    scored_times_after_warmup_ms: list[float] = []
     converged = False
-    for batch in range(1, max_batch_count + 1):
-        first_run = (batch - 1) * batch_size + 1
-        last_run = min(batch * batch_size, MAX_RUNS)
+    for batch in range(1, MAX_BATCH_COUNT + 1):
+        first_run = (batch - 1) * BATCH_SIZE + 1
+        last_run = batch * BATCH_SIZE
         batch_runs = list(range(first_run, last_run + 1))
-        batch_cpus = lower_cpus[: len(batch_runs)]
         print(
-            f"[batch {batch}/{max_batch_count}] Starting {len(batch_runs)} run(s).",
+            f"[batch {batch}/{MAX_BATCH_COUNT}] Starting "
+            f"{len(batch_runs)} run(s).",
             flush=True,
         )
 
         workers: list[Worker] = []
-        for run, cpu in zip(batch_runs, batch_cpus, strict=True):
+        for run, cpu in zip(batch_runs, worker_cpus, strict=True):
             log_file = log_files[run - 1]
             print(
-                f"[batch {batch}/{max_batch_count}] Starting run {run} on "
+                f"[batch {batch}/{MAX_BATCH_COUNT}] Starting run {run} on "
                 f"CPU{cpu}: {log_file}",
                 flush=True,
             )
-            workers.append(start_worker(run, cpu, log_file, microbench, config.arch))
+            workers.append(
+                start_worker(run, cpu, log_file, microbench, config.arch)
+            )
 
         monitor_workers(workers)
         batch_failed = 0
+        batch_scored_times_ms: list[float] = []
         for worker in workers:
             status = finish_worker(worker)
             if status != 0:
                 print(
-                    f"[batch {batch}/{max_batch_count}] Run {worker.run} on "
+                    f"[batch {batch}/{MAX_BATCH_COUNT}] Run {worker.run} on "
                     f"CPU{worker.cpu} failed with status {status}: "
                     f"{worker.log_file}",
                     file=sys.stderr,
@@ -272,7 +283,7 @@ def main() -> int:
                     scored_time_ms = extract_scored_time_ms(worker.log_file)
                 except ValueError as exc:
                     print(
-                        f"[batch {batch}/{max_batch_count}] Run {worker.run} "
+                        f"[batch {batch}/{MAX_BATCH_COUNT}] Run {worker.run} "
                         f"on CPU{worker.cpu} produced an invalid benchmark log: "
                         f"{exc}: {worker.log_file}",
                         file=sys.stderr,
@@ -280,9 +291,9 @@ def main() -> int:
                     )
                     batch_failed += 1
                 else:
-                    scored_times_ms.append(scored_time_ms)
+                    batch_scored_times_ms.append(scored_time_ms)
                     print(
-                        f"[batch {batch}/{max_batch_count}] Run {worker.run} "
+                        f"[batch {batch}/{MAX_BATCH_COUNT}] Run {worker.run} "
                         f"on CPU{worker.cpu} finished: {worker.log_file} "
                         f"(Scored time: {scored_time_ms:.4f} ms)",
                         flush=True,
@@ -290,24 +301,30 @@ def main() -> int:
 
         failed += batch_failed
         attempts = last_run
+        valid_runs += len(batch_scored_times_ms)
+        if batch > WARMUP_BATCH_COUNT:
+            scored_times_after_warmup_ms.extend(batch_scored_times_ms)
         print(
-            f"[batch {batch}/{max_batch_count}] Complete ({batch_failed} failure(s)).",
+            f"[batch {batch}/{MAX_BATCH_COUNT}] Complete "
+            f"({batch_failed} failure(s)).",
             flush=True,
         )
 
-        if len(scored_times_ms) < MIN_RUNS:
-            if attempts >= MIN_RUNS:
-                print(
-                    f"RMOE check pending: {len(scored_times_ms)}/{MIN_RUNS} "
-                    "valid Scored time samples.",
-                    flush=True,
-                )
+        if batch < MIN_BATCH_COUNT:
             continue
 
-        result = calculate_after_warmup(scored_times_ms)
+        if len(scored_times_after_warmup_ms) < 2:
+            print(
+                "RMOE check pending: fewer than 2 valid Scored time samples "
+                "remain after discarding batch 1.",
+                flush=True,
+            )
+            continue
+
+        result = calculate_rmoe99(scored_times_after_warmup_ms)
         print(
-            f"RMOE after {len(scored_times_ms)} valid runs "
-            f"(first {WARMUP_RUNS} discarded, n={result.sample_count}): "
+            f"RMOE after {batch} batches ({valid_runs} total valid runs; "
+            f"batch 1 discarded, n={result.sample_count}): "
             f"mean={result.mean_ms:.4f} ms, "
             f"99% RMOE={result.rmoe99_percent:.4f}%",
             flush=True,
@@ -326,13 +343,15 @@ def main() -> int:
 
     if converged:
         print(
-            f"Stopped after {attempts} runs: two-sided 99% RMOE is below "
+            f"Stopped after {attempts // BATCH_SIZE} batches ({attempts} runs): "
+            f"two-sided 99% RMOE is below "
             f"{RMOE_THRESHOLD_PERCENT:g}%."
         )
     else:
         print(
-            f"Stopped at the maximum of {MAX_RUNS} runs before two-sided 99% "
-            f"RMOE fell below {RMOE_THRESHOLD_PERCENT:g}%.",
+            f"Stopped at the maximum of {MAX_BATCH_COUNT} batches "
+            f"({MAX_RUNS} runs) before two-sided 99% RMOE fell below "
+            f"{RMOE_THRESHOLD_PERCENT:g}%.",
             file=sys.stderr,
         )
     return 0
