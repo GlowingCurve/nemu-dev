@@ -8,7 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _common import (
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Isolation scripts are executable files in a subdirectory; expose shared helpers.
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from _common import (  # noqa: E402
     NEMU_CGROUP,
     NEMU_IRQBALANCE_UNIT,
     NEMU_STATE,
@@ -18,7 +22,7 @@ from _common import (
     read_text,
     try_read_text,
 )
-from _core_runtime import (
+from _core_runtime import (  # noqa: E402
     ArgumentError,
     load_runtime_config,
     parse_cpu_argument,

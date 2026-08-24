@@ -5,10 +5,15 @@ from __future__ import annotations
 import math
 import re
 import statistics
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from _common import ScriptError
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Runner helpers can also be imported or checked directly; expose shared helpers.
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from _common import ScriptError  # noqa: E402
 
 MIN_RUNS = 15
 MAX_RUNS = 125

@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn, TextIO
 
-from _common import (
+SCRIPT_DIR = Path(__file__).resolve().parent
+# Isolation scripts are executable files in a subdirectory; expose shared helpers.
+sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from _common import (  # noqa: E402
     ScriptError,
     cpus_to_mask,
     format_cpu_list,
