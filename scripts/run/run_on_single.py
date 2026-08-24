@@ -45,10 +45,23 @@ from _run_config import (  # noqa: E402
 )
 
 FREQ_SAMPLE_INTERVAL_SECONDS = 0.1
+PERF_EVENTS = (
+    "instructions:u",
+    "cycles:u",
+    "branches:u",
+    "branch-misses:u",
+)
 
 
 def die(message: str) -> None:
     raise ScriptError(f"Error: {message}", 2)
+
+
+def perf_stat_command(command: list[str]) -> list[str]:
+    perf_command = ["perf", "stat", "--no-big-num", "-x", ";"]
+    for event in PERF_EVENTS:
+        perf_command.extend(("-e", event))
+    return [*perf_command, "--", *command]
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +89,8 @@ def main() -> int:
         die("taskset is not installed.")
     if not command_exists("sudo"):
         die("sudo is not installed.")
+    if not command_exists("perf"):
+        die("perf is not installed.")
 
     effective_path = NEMU_CGROUP / "cpuset.cpus.effective"
     cgroup_procs = NEMU_CGROUP / "cgroup.procs"
@@ -162,7 +177,7 @@ def main() -> int:
         with log_file.open("x", encoding="utf-8") as stream:
             try:
                 process = subprocess.Popen(
-                    make_run_command(microbench, config.arch),
+                    perf_stat_command(make_run_command(microbench, config.arch)),
                     cwd=SCRIPT_DIR,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
