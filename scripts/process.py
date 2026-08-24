@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dispatch a benchmark run using the shared configuration."""
+"""Dispatch log processing using the shared configuration."""
 
 from __future__ import annotations
 
@@ -9,58 +9,58 @@ import sys
 from pathlib import Path
 
 from _common import ScriptError, main_guard, normalize_returncode, program_name
-from _config import ARCH, LOG_TYPE
+from _config import LOG_TYPE
 
-
-RUNNER_BY_LOG_TYPE = {
-    "real": "run_real.py",
-    "single": "run_on_single.py",
-    "batch": "run_on_batch.py",
+ANALYZER_BY_LOG_TYPE = {
+    "real": "analyze_real.py",
+    "batch": "analyze_batch.py",
+    "single": "analyze_single.py",
 }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog=program_name(sys.argv[0]),
-        description="Run the configured benchmark and write logs to DIR.",
+        description="Process logs using the configured log data type.",
         allow_abbrev=False,
+    )
+    parser.add_argument(
+        "--input",
+        metavar="DIR",
+        type=Path,
+        required=True,
+        help="directory containing the input log files",
     )
     parser.add_argument(
         "--output",
         metavar="DIR",
         type=Path,
         required=True,
-        help="existing directory in which log files will be written",
+        help="directory in which analysis results will be written",
     )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    output = args.output.expanduser()
-    if not output.is_dir():
-        raise ScriptError(
-            f"Error: output directory does not exist or is not a directory: {output}",
-            2,
-        )
 
-    runner_name = RUNNER_BY_LOG_TYPE.get(LOG_TYPE)
-    if runner_name is None:
-        supported = ", ".join(RUNNER_BY_LOG_TYPE)
+    analyzer_name = ANALYZER_BY_LOG_TYPE.get(LOG_TYPE)
+    if analyzer_name is None:
+        supported = ", ".join(ANALYZER_BY_LOG_TYPE)
         raise ScriptError(
             f"Error: unsupported LOG_TYPE {LOG_TYPE!r}; choose one of: {supported}.",
             2,
         )
 
-    runner = Path(__file__).resolve().parent / "run" / runner_name
+    analyzer = Path(__file__).resolve().parent / "analyze" / analyzer_name
     result = subprocess.run(
         [
             sys.executable,
-            str(runner),
-            "--arch",
-            ARCH,
+            str(analyzer),
+            "--input",
+            str(args.input.expanduser()),
             "--output",
-            str(output),
+            str(args.output.expanduser()),
         ],
         check=False,
     )
