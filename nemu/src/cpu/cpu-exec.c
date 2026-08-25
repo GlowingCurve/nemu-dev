@@ -32,7 +32,7 @@ void device_update();
 int WP_checking();
 void print_iringbuf();
 
-static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
+/*static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE
   log_write("[ITRACE]: %s\n", _this->logbuf);
   IFDEF(CONFIG_ITRACE, puts("[ITRACE]:"));
@@ -44,14 +44,11 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
     nemu_state.state = NEMU_STOP;
   }
 #endif
-}
+}*/
 
-static void exec_once(Decode *s, vaddr_t pc) {
-  s->pc = pc;
-  s->snpc = pc;
-  isa_exec_once(s);
+static void exec_once() {
+  cpu.pc = isa_exec_once(cpu.pc);
   // printf("PC:0x%08x 0x%08x 0x%08x\n", pc, cpu.gpr[15], cpu.gpr[8]);
-  cpu.pc = s->dnpc;
 #ifdef CONFIG_ITRACE
   char *p = s->logbuf;
   p += snprintf(p, sizeof(s->logbuf), FMT_WORD ":", s->pc);
@@ -81,15 +78,16 @@ static void exec_once(Decode *s, vaddr_t pc) {
 }
 
 static void execute(uint64_t n) {
-  Decode s;
+  uint64_t n_orignal = n;
   for (; n > 0; n--) {
-    exec_once(&s, cpu.pc);
-    g_nr_guest_inst++;
-    trace_and_difftest(&s, cpu.pc);
+    exec_once();
+    // g_nr_guest_inst++;
+    // trace_and_difftest(&s, cpu.pc);
     if (nemu_state.state != NEMU_RUNNING)
       break;
     // IFDEF(CONFIG_DEVICE, device_update());
   }
+  g_nr_guest_inst += n_orignal - n;
 }
 
 static void statistic() {

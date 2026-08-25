@@ -43,6 +43,16 @@ enum {
   TYPE_B, // none
 };
 
+struct InstInf {
+  uint32_t pc;
+  uint8_t rd;
+  uint8_t rs1;
+  uint8_t rs2;
+  uint32_t imm;
+};
+
+typedef struct InstInf InstInf;
+
 #define src1R()                                                                \
   do {                                                                         \
     *src1 = R(rs1);                                                            \
@@ -80,6 +90,189 @@ enum {
     csr_t = CSR(imm);                                                          \
   } while (0)
 
+static inline vaddr_t lui(InstInf inst_inf) {
+  R(inst_inf.rd) = inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t auipc(InstInf inst_inf) {
+  R(inst_inf.rd) = inst_inf.pc + inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t lb(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 1), 7, 0), 8);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t lw(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 4);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t lh(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 2), 15, 0), 16);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t lbu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 1);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t lhu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sb(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 1, src2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sh(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 2, src2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sw(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 4, src2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t addi(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) + inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t slti(InstInf inst_inf) {
+  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)inst_inf.imm ? 1 : 0;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sltiu(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) < (word_t)inst_inf.imm ? 1 : 0;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t xori(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) ^ inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t ori(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) | inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t andi(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) & inst_inf.imm;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t slli(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) << (inst_inf.imm & 0x1F);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t srli(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) >> (inst_inf.imm & 0x1F);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t srai(InstInf inst_inf) {
+  R(inst_inf.rd) = (word_t)((sword_t)R(inst_inf.rs1) >> (inst_inf.imm & 0x1F));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t add(InstInf inst_inf) {
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) + R(inst_inf.rs2));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sub(InstInf inst_inf) {
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) - R(inst_inf.rs2));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sll(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) << (R(inst_inf.rs2) & 0x1F);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t slt(InstInf inst_inf) {
+  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2) ? 1 : 0;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sltu(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) < R(inst_inf.rs2) ? 1 : 0;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t xor(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) ^ R(inst_inf.rs2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t srl(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t sra(InstInf inst_inf) {
+  R(inst_inf.rd) =
+      (word_t)((sword_t)R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t or(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) | R(inst_inf.rs2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t and(InstInf inst_inf) {
+  R(inst_inf.rd) = R(inst_inf.rs1) & R(inst_inf.rs2);
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t mul(InstInf inst_inf) {
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) * R(inst_inf.rs2));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t mulh(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (SEXT(src2, 32)), 63, 32));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t mulhsu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (uint64_t)src2, 63, 32));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t mulhu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((uint64_t)src1 * (uint64_t)src2, 63, 32));
+  return inst_inf.pc + 4;
+}
+
 static word_t _div(word_t src1, word_t src2) {
   if (src1 == 0x80000000 && src2 == 0xFFFFFFFF)
     return 0x80000000;
@@ -98,8 +291,107 @@ static word_t _rem(word_t src1, word_t src2) {
     return ((sword_t)src1) % ((sword_t)src2);
 }
 
-static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2,
-                           word_t *imm, int type) {
+static inline vaddr_t div_inst(InstInf inst_inf) {
+  R(inst_inf.rd) = _div(R(inst_inf.rs1), R(inst_inf.rs2));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t divu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = src2 != 0 ? src1 / src2 : 0xFFFFFFFF;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t rem(InstInf inst_inf) {
+  R(inst_inf.rd) = _rem(R(inst_inf.rs1), R(inst_inf.rs2));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t remu(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = src2 != 0 ? (word_t)(src1 % src2) : src1;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t csrrw(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
+  CSR(inst_inf.imm) = src1;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t csrrs(InstInf inst_inf) {
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
+  CSR(inst_inf.imm) = CSR(inst_inf.imm) | src1;
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t jal(InstInf inst_inf) {
+  R(inst_inf.rd) = inst_inf.pc + 4;
+  return inst_inf.pc + inst_inf.imm;
+}
+
+static inline vaddr_t jalr(InstInf inst_inf) {
+  vaddr_t dnpc = (R(inst_inf.rs1) + inst_inf.imm) & (~1);
+  R(inst_inf.rd) = inst_inf.pc + 4;
+  return dnpc;
+}
+
+static inline vaddr_t beq(InstInf inst_inf) {
+  return R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+static inline vaddr_t bne(InstInf inst_inf) {
+  return R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+static inline vaddr_t blt(InstInf inst_inf) {
+  return (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
+             ? inst_inf.pc + inst_inf.imm
+             : inst_inf.pc + 4;
+}
+
+static inline vaddr_t bge(InstInf inst_inf) {
+  return (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
+             ? inst_inf.pc + inst_inf.imm
+             : inst_inf.pc + 4;
+}
+
+static inline vaddr_t bltu(InstInf inst_inf) {
+  return R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                           : inst_inf.pc + 4;
+}
+
+static inline vaddr_t bgeu(InstInf inst_inf) {
+  return R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+static inline vaddr_t ecall(InstInf inst_inf) {
+  isa_raise_intr(11, inst_inf.pc);
+  return CSR(mtvec_addr);
+}
+
+static inline vaddr_t mret(InstInf inst_inf) { return CSR(mepc_addr); }
+
+static inline vaddr_t ebreak(InstInf inst_inf) {
+  NEMUTRAP(inst_inf.pc, R(10));
+  return inst_inf.pc + 4;
+}
+
+static inline vaddr_t invalid(InstInf inst_inf) {
+  INV(inst_inf.pc);
+  return inst_inf.pc + 4; // shouldn't get here
+}
+
+static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
+                           word_t *src2, InstInf *inst_inf, word_t *imm,
+                           int type) {
   uint32_t i = s->isa.inst;
   int rs1 = BITS(i, 19, 15);
   int rs2 = BITS(i, 24, 20);
@@ -134,124 +426,130 @@ static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2,
   default:
     panic("unsupported type = %d", type);
   }
+  inst_inf->rd = *rd;
+  inst_inf->imm = *imm;
+  inst_inf->rs1 = rs1;
+  inst_inf->rs2 = rs2;
+  inst_inf->pc = pc;
 }
 
-static int decode_exec(Decode *s) {
-  s->dnpc = s->snpc;
+static vaddr_t decode_exec(vaddr_t pc) {
+  Decode *s = malloc(sizeof(Decode));
+  s->isa.inst = vaddr_ifetch(pc, 4);
+  vaddr_t dnpc = pc + 4;
 
 #define INSTPAT_INST(s) ((s)->isa.inst)
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
   {                                                                            \
     int rd = 0;                                                                \
     word_t src1 = 0, src2 = 0, imm = 0;                                        \
-    decode_operand(s, &rd, &src1, &src2, &imm, concat(TYPE_, type));           \
+    InstInf inst_inf = {};                                                     \
+    decode_operand(s, pc, &rd, &src1, &src2, &inst_inf, &imm,                  \
+                   concat(TYPE_, type));                                       \
     __VA_ARGS__;                                                               \
   }
 
   INSTPAT_START();
-  INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui, U, R(rd) = imm);
+  INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui, U,
+          dnpc = lui(inst_inf));
   INSTPAT("??????? ????? ????? ??? ????? 00101 11", auipc, U,
-          R(rd) = s->pc + imm);
-  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal, J, R(rd) = s->pc + 4,
-          s->dnpc = s->pc + imm);
-  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr, I, R(rd) = s->pc + 4,
-          s->dnpc = (src1 + imm) & (~1));
+          dnpc = auipc(inst_inf));
+  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal, J,
+          dnpc = jal(inst_inf));
+  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr, I,
+          dnpc = jalr(inst_inf));
   INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq, B,
-          s->dnpc = (src1 == src2) ? s->pc + imm : s->dnpc);
+          dnpc = beq(inst_inf));
   INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne, B,
-          s->dnpc = (src1 != src2) ? s->pc + imm : s->dnpc);
+          dnpc = bne(inst_inf));
   INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt, B,
-          s->dnpc = ((sword_t)src1 < (sword_t)src2) ? s->pc + imm : s->dnpc);
+          dnpc = blt(inst_inf));
   INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge, B,
-          s->dnpc = ((sword_t)src1 >= (sword_t)src2) ? s->pc + imm : s->dnpc);
+          dnpc = bge(inst_inf));
   INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu, B,
-          s->dnpc = (src1 < src2) ? s->pc + imm : s->dnpc);
+          dnpc = bltu(inst_inf));
   INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu, B,
-          s->dnpc = (src1 >= src2) ? s->pc + imm : s->dnpc);
-  INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb, I,
-          R(rd) = SEXT(BITS(Mr(src1 + imm, 1), 7, 0), 8));
-  INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw, I,
-          R(rd) = Mr(src1 + imm, 4));
-  INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh, I,
-          R(rd) = SEXT(BITS(Mr(src1 + imm, 2), 15, 0), 16));
+          dnpc = bgeu(inst_inf));
+  INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb, I, dnpc = lb(inst_inf));
+  INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw, I, dnpc = lw(inst_inf));
+  INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh, I, dnpc = lh(inst_inf));
   INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu, I,
-          R(rd) = Mr(src1 + imm, 1));
+          dnpc = lbu(inst_inf));
   INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu, I,
-          R(rd) = Mr(src1 + imm, 2));
-  INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb, S,
-          Mw(src1 + imm, 1, src2));
-  INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh, S,
-          Mw(src1 + imm, 2, src2));
-  INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw, S,
-          Mw(src1 + imm, 4, src2));
+          dnpc = lhu(inst_inf));
+  INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb, S, dnpc = sb(inst_inf));
+  INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh, S, dnpc = sh(inst_inf));
+  INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw, S, dnpc = sw(inst_inf));
   INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi, I,
-          R(rd) = src1 + imm);
+          dnpc = addi(inst_inf));
   INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti, I,
-          R(rd) = ((sword_t)src1) < ((sword_t)imm) ? 1 : 0);
+          dnpc = slti(inst_inf));
   INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu, I,
-          R(rd) = (src1 < ((word_t)imm)) ? 1 : 0);
+          dnpc = sltiu(inst_inf));
   INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori, I,
-          R(rd) = src1 ^ imm);
-  INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori, I, R(rd) = src1 | imm);
+          dnpc = xori(inst_inf));
+  INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori, I,
+          dnpc = ori(inst_inf));
   INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi, I,
-          R(rd) = src1 & imm);
+          dnpc = andi(inst_inf));
   INSTPAT("0000000 ????? ????? 001 ????? 00100 11", slli, I,
-          R(rd) = src1 << ((word_t)(imm & 0x1F)));
+          dnpc = slli(inst_inf));
   INSTPAT("0000000 ????? ????? 101 ????? 00100 11", srli, I,
-          R(rd) = src1 >> ((word_t)(imm & 0x1F)));
+          dnpc = srli(inst_inf));
   INSTPAT("0100000 ????? ????? 101 ????? 00100 11", srai, I,
-          R(rd) = (word_t)(((sword_t)src1) >> (imm & 0x1F)));
+          dnpc = srai(inst_inf));
   INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add, R,
-          R(rd) = (word_t)(src1 + src2));
+          dnpc = add(inst_inf));
   INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub, R,
-          R(rd) = (word_t)(src1 - src2));
+          dnpc = sub(inst_inf));
   INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll, R,
-          R(rd) = src1 << (src2 & 0x1F));
+          dnpc = sll(inst_inf));
   INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt, R,
-          R(rd) = ((sword_t)src1) < ((sword_t)src2) ? 1 : 0);
+          dnpc = slt(inst_inf));
   INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu, R,
-          R(rd) = (src1 < src2) ? 1 : 0);
+          dnpc = sltu(inst_inf));
   INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor, R,
-          R(rd) = src1 ^ src2);
+          dnpc = xor(inst_inf));
   INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl, R,
-          R(rd) = src1 >> (src2 & 0x1F));
+          dnpc = srl(inst_inf));
   INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra, R,
-          R(rd) = (word_t)(((sword_t)src1) >> (src2 & 0x1F)));
-  INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or, R, R(rd) = src1 | src2);
+          dnpc = sra(inst_inf));
+  INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or, R, dnpc = or(inst_inf));
   INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and, R,
-          R(rd) = src1 & src2);
+          dnpc = and(inst_inf));
   INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul, R,
-          R(rd) = (word_t)(src1 * src2));
+          dnpc = mul(inst_inf));
   INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh, R,
-          R(rd) = (word_t)(BITS((SEXT(src1, 32)) * (SEXT(src2, 32)), 63, 32)));
+          dnpc = mulh(inst_inf));
   INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu, R,
-          R(rd) = (word_t)(BITS((SEXT(src1, 32)) * (uint64_t)src2, 63, 32)));
+          dnpc = mulhsu(inst_inf));
   INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu, R,
-          R(rd) = (word_t)(BITS((uint64_t)src1 * (uint64_t)src2, 63, 32)));
+          dnpc = mulhu(inst_inf));
   INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div, R,
-          R(rd) = _div(src1, src2));
+          dnpc = div_inst(inst_inf));
   INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu, R,
-          R(rd) = (src2 != 0) ? src1 / src2 : 0xFFFFFFFF);
+          dnpc = divu(inst_inf));
   INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem, R,
-          R(rd) = _rem(src1, src2));
+          dnpc = rem(inst_inf));
   INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu, R,
-          R(rd) = (src2 != 0) ? (word_t)(src1 % src2) : src1);
+          dnpc = remu(inst_inf));
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak, N,
-          NEMUTRAP(s->pc, R(10))); // R(10) is $a0
+          dnpc = ebreak(inst_inf)); // R(10) is $a0
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw, I,
-          R(rd) = (word_t)CSR(imm), CSR(imm) = src1);
+          dnpc = csrrw(inst_inf));
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs, I,
-          R(rd) = (word_t)CSR(imm), CSR(imm) = CSR(imm) | src1);
+          dnpc = csrrs(inst_inf));
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, I,
-          isa_raise_intr(11, s->pc), s->dnpc = CSR(mtvec_addr));
+          dnpc = ecall(inst_inf));
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, I,
-          s->dnpc = CSR(mepc_addr));
-  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N, INV(s->pc));
+          dnpc = mret(inst_inf));
+  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N,
+          dnpc = invalid(inst_inf));
   INSTPAT_END();
 
   R(0) = 0; // reset $zero to 0
   CSR(mstatus_addr) = 0x1800;
-  return 0;
+  return dnpc;
 }
 
 void print_iringbuf() {
@@ -271,8 +569,7 @@ void print_iringbuf() {
   printf("--- IRINGBUF END ---\n");
 }
 
-int isa_exec_once(Decode *s) {
-  s->isa.inst = inst_fetch(&s->snpc, 4);
+vaddr_t isa_exec_once(vaddr_t pc) {
 #ifdef CONFIG_ITRACE
   inst_count++;
   snprintf(iringbuf[(inst_count - 1) % 16], 128, "PC:0x%08x 0x%08x", s->pc,
@@ -281,5 +578,5 @@ int isa_exec_once(Decode *s) {
 #ifdef CONFIG_FTRACE
   ftrace(s->isa.inst, s->pc);
 #endif
-  return decode_exec(s);
+  return decode_exec(pc);
 }
