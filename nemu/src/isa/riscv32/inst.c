@@ -53,6 +53,15 @@ struct InstInf {
 
 typedef struct InstInf InstInf;
 
+struct Inst {
+  InstInf inst_inf;
+  vaddr_t (*handler)(InstInf);
+};
+
+typedef struct Inst Inst;
+
+Inst inst_cache[1024] = {};
+
 #define src1R()                                                                \
   do {                                                                         \
     *src1 = R(rs1);                                                            \
@@ -433,12 +442,13 @@ static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
   inst_inf->pc = pc;
 }
 
-static vaddr_t decode_exec(vaddr_t pc) {
+static Inst decode(vaddr_t pc) {
   Decode *s = malloc(sizeof(Decode));
   s->isa.inst = vaddr_ifetch(pc, 4);
+
+  Inst inst;
   InstInf inst_inf = {};
   vaddr_t (*handler)(InstInf) = invalid;
-  vaddr_t dnpc = pc + 4;
 
 #define INSTPAT_INST(s) ((s)->isa.inst)
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
@@ -506,11 +516,17 @@ static vaddr_t decode_exec(vaddr_t pc) {
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N, handler = invalid);
   INSTPAT_END();
 
-  dnpc = handler(inst_inf);
+  inst.inst_inf = inst_inf;
+  inst.handler = handler;
+  free(s);
 
+  return inst;
+}
+
+static vaddr_t execute(Inst inst) {
+  vaddr_t dnpc = inst.handler(inst.inst_inf);
   R(0) = 0; // reset $zero to 0
   CSR(mstatus_addr) = 0x1800;
-  free(s);
   return dnpc;
 }
 
@@ -531,6 +547,13 @@ void print_iringbuf() {
   printf("--- IRINGBUF END ---\n");
 }
 
+bool is_hitcache(vaddr_t pc) {
+  if ((inst_cache[(pc & 0xFFF) >> 2].inst_inf.pc) == pc) {
+    return true;
+  }
+  return false;
+}
+
 vaddr_t isa_exec_once(vaddr_t pc) {
 #ifdef CONFIG_ITRACE
   inst_count++;
@@ -540,5 +563,14 @@ vaddr_t isa_exec_once(vaddr_t pc) {
 #ifdef CONFIG_FTRACE
   ftrace(s->isa.inst, s->pc);
 #endif
-  return decode_exec(pc);
+  Inst inst;
+  /*
+  if (is_hitcache(pc)) {
+    inst = inst_cache[(pc & 0xFFF) >> 2];
+  } else {
+    inst = decode(pc);
+    inst_cache[(pc & 0xFFF) >> 2] = inst;
+  }*/
+  inst = decode(pc);
+  return execute(inst);
 }
