@@ -522,14 +522,14 @@ static Inst decode(vaddr_t pc) {
 
   return inst;
 }
-
+/*
 static vaddr_t execute(Inst inst) {
   vaddr_t dnpc = inst.handler(inst.inst_inf);
   R(0) = 0; // reset $zero to 0
   CSR(mstatus_addr) = 0x1800;
   return dnpc;
 }
-
+*/
 void print_iringbuf() {
   printf("--- IRINGBUF BEGIN ---\n");
 
@@ -563,13 +563,13 @@ vaddr_t isa_exec_once(vaddr_t pc) {
 #ifdef CONFIG_FTRACE
   ftrace(s->isa.inst, s->pc);
 #endif
-  Inst inst;
+  Inst *inst = &inst_cache[(pc & 0xFFF) >> 2];
 
-  if (is_hitcache(pc)) {
-    inst = inst_cache[(pc & 0xFFF) >> 2];
-  } else {
-    inst = decode(pc);
-    inst_cache[(pc & 0xFFF) >> 2] = inst;
+  if (!is_hitcache(pc)) {
+    *inst = decode(pc);
   }
-  return execute(inst);
+  vaddr_t dnpc = inst->handler(inst->inst_inf);
+  R(0) = 0;
+  CSR(mstatus_addr) = 0x1800;
+  return dnpc;
 }
