@@ -564,13 +564,12 @@ vaddr_t isa_exec_once(vaddr_t pc) {
   ftrace(s->isa.inst, s->pc);
 #endif
   Inst inst;
-  /*
+
   if (is_hitcache(pc)) {
     inst = inst_cache[(pc & 0xFFF) >> 2];
   } else {
     inst = decode(pc);
     inst_cache[(pc & 0xFFF) >> 2] = inst;
-  }*/
-  inst = decode(pc);
+  }
   return execute(inst);
 }
