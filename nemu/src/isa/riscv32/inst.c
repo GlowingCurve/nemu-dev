@@ -114,7 +114,17 @@ struct Inst {
 
 typedef struct Inst Inst;
 
-Inst inst_cache[1024] = {};
+#define MAX_INST_LENGTH 32
+
+struct BasicBlock {
+  uint32_t pc;
+  uint32_t count;
+  Inst insts[MAX_INST_LENGTH];
+};
+
+typedef struct BasicBlock BasicBlock;
+
+BasicBlock basicblock_cache[1024] = {};
 
 #define src1R()                                                                \
   do {                                                                         \
@@ -126,27 +136,27 @@ Inst inst_cache[1024] = {};
   } while (0)
 #define immI()                                                                 \
   do {                                                                         \
-    *imm = SEXT(BITS(i, 31, 20), 12);                                          \
+    imm = SEXT(BITS(i, 31, 20), 12);                                           \
   } while (0)
 #define immU()                                                                 \
   do {                                                                         \
-    *imm = SEXT(BITS(i, 31, 12), 20) << 12;                                    \
+    imm = SEXT(BITS(i, 31, 12), 20) << 12;                                     \
   } while (0)
 #define immS()                                                                 \
   do {                                                                         \
-    *imm = (SEXT(BITS(i, 31, 25), 7) << 5) | BITS(i, 11, 7);                   \
+    imm = (SEXT(BITS(i, 31, 25), 7) << 5) | BITS(i, 11, 7);                    \
   } while (0)
 #define immJ()                                                                 \
   do {                                                                         \
-    *imm = SEXT(((BITS(i, 31, 31) << 20) + (BITS(i, 19, 12) << 12) +           \
-                 (BITS(i, 20, 20) << 11) + (BITS(i, 30, 21) << 1)),            \
-                21);                                                           \
+    imm = SEXT(((BITS(i, 31, 31) << 20) + (BITS(i, 19, 12) << 12) +            \
+                (BITS(i, 20, 20) << 11) + (BITS(i, 30, 21) << 1)),             \
+               21);                                                            \
   } while (0)
 #define immB()                                                                 \
   do {                                                                         \
-    *imm = SEXT(((BITS(i, 31, 31) << 12) + (BITS(i, 30, 25) << 5) +            \
-                 (BITS(i, 11, 8) << 1) + (BITS(i, 7, 7) << 11)),               \
-                13);                                                           \
+    imm = SEXT(((BITS(i, 31, 31) << 12) + (BITS(i, 30, 25) << 5) +             \
+                (BITS(i, 11, 8) << 1) + (BITS(i, 7, 7) << 11)),                \
+               13);                                                            \
   } while (0)
 #define csrR()                                                                 \
   do {                                                                         \
@@ -452,24 +462,25 @@ static inline vaddr_t invalid(InstInf inst_inf) {
   return inst_inf.pc + 4; // shouldn't get here
 }
 
-static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
-                           word_t *src2, InstInf *inst_inf, word_t *imm,
-                           int type) {
+static void decode_operand(Decode *s, vaddr_t pc, InstInf *inst_inf, int type) {
   uint32_t i = s->isa.inst;
-  int rs1 = BITS(i, 19, 15);
-  int rs2 = BITS(i, 24, 20);
-  *rd = BITS(i, 11, 7);
+  inst_inf->rs1 = BITS(i, 19, 15);
+  inst_inf->rs2 = BITS(i, 24, 20);
+  uint8_t rd = BITS(i, 11, 7);
+  if (rd == 0) {
+    rd = 32;
+  }
+  inst_inf->rd = rd;
+  inst_inf->pc = pc;
+  uint32_t imm = 0;
   switch (type) {
   case TYPE_I:
-    src1R();
     immI();
     break;
   case TYPE_U:
     immU();
     break;
   case TYPE_S:
-    src1R();
-    src2R();
     immS();
     break;
   case TYPE_N:
@@ -478,26 +489,19 @@ static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
     immJ();
     break;
   case TYPE_R:
-    src1R();
-    src2R();
     break;
   case TYPE_B:
-    src1R();
-    src2R();
     immB();
     break;
   default:
     panic("unsupported type = %d", type);
   }
-  inst_inf->rd = *rd;
-  inst_inf->imm = *imm;
-  inst_inf->rs1 = rs1;
-  inst_inf->rs2 = rs2;
-  inst_inf->pc = pc;
+  inst_inf->imm = imm;
 }
 
 static Inst decode(vaddr_t pc) {
-  Decode *s = malloc(sizeof(Decode));
+  Decode root = {};
+  Decode *s = &root;
   s->isa.inst = vaddr_ifetch(pc, 4);
 
   Inst inst;
@@ -507,10 +511,7 @@ static Inst decode(vaddr_t pc) {
 #define INSTPAT_INST(s) ((s)->isa.inst)
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
   {                                                                            \
-    int rd = 0;                                                                \
-    word_t src1 = 0, src2 = 0, imm = 0;                                        \
-    decode_operand(s, pc, &rd, &src1, &src2, &inst_inf, &imm,                  \
-                   concat(TYPE_, type));                                       \
+    decode_operand(s, pc, &inst_inf, concat(TYPE_, type));                     \
     __VA_ARGS__;                                                               \
   }
 
@@ -579,7 +580,6 @@ static Inst decode(vaddr_t pc) {
 
   inst.inst_inf = inst_inf;
   inst.opcode = opcode;
-  free(s);
 
   return inst;
 }
@@ -710,10 +710,53 @@ void print_iringbuf() {
 }
 
 bool is_hitcache(vaddr_t pc) {
-  if ((inst_cache[(pc & 0xFFF) >> 2].inst_inf.pc) == pc) {
+  if ((basicblock_cache[(pc & 0xFFF) >> 2].pc) == pc) {
     return true;
   }
   return false;
+}
+
+bool is_terminate(Inst inst) {
+  switch (inst.opcode) {
+  case OP_JAL:
+  case OP_JALR:
+  case OP_BEQ:
+  case OP_BNE:
+  case OP_BLT:
+  case OP_BGE:
+  case OP_BLTU:
+  case OP_BGEU:
+  case OP_ECALL:
+  case OP_EBREAK:
+  case OP_MRET:
+    return true;
+  default:
+    return false;
+  }
+}
+
+void basicblock_cache_refill(vaddr_t pc) {
+  unsigned int index = (pc & 0xFFF) >> 2;
+  unsigned int count = 0;
+
+  basicblock_cache[index].pc = pc;
+  basicblock_cache[index].insts[count] = decode(pc);
+
+  while ((count < MAX_INST_LENGTH - 1) &&
+         (!is_terminate(basicblock_cache[index].insts[count]))) {
+    count++;
+    pc += 4;
+    basicblock_cache[index].insts[count] = decode(pc);
+  }
+  basicblock_cache[index].count = count;
+}
+
+vaddr_t basicblock_cache_execute(BasicBlock basicblock) {
+  unsigned int count = basicblock.count;
+  for (int i = 0; i < count; i++) {
+    switch_execution(&basicblock.insts[i]);
+  }
+  return switch_execution(&basicblock.insts[count]);
 }
 
 vaddr_t isa_exec_once(vaddr_t pc) {
@@ -725,12 +768,12 @@ vaddr_t isa_exec_once(vaddr_t pc) {
 #ifdef CONFIG_FTRACE
   ftrace(s->isa.inst, s->pc);
 #endif
-  Inst *inst = &inst_cache[(pc & 0xFFF) >> 2];
+
+  uint32_t index = (pc & 0xFFF) >> 2;
 
   if (!is_hitcache(pc)) {
-    *inst = decode(pc);
+    basicblock_cache_refill(pc);
   }
-  vaddr_t dnpc = switch_execution(inst);
-  R(0) = 0;
+  vaddr_t dnpc = basicblock_cache_execute(basicblock_cache[index]);
   return dnpc;
 }
