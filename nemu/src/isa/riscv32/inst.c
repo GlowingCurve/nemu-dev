@@ -123,6 +123,8 @@ struct BasicBlock {
   uint32_t pc;
   uint32_t count;
   void *entry;
+  struct BasicBlock *taken;
+  struct BasicBlock *fallthrough;
   Inst insts[MAX_INST_LENGTH + 1];
 };
 
@@ -317,6 +319,24 @@ static Inst decode(vaddr_t pc) {
   return inst;
 }
 
+static __attribute__((noinline, cold)) BasicBlock *
+basicblock_cache_resolve(BasicBlock *source, BasicBlock **successor,
+                         vaddr_t pc) {
+  vaddr_t source_pc = source->pc;
+  uint32_t index = (pc & 0xFFF) >> 2;
+  BasicBlock *target = &basicblock_cache[index];
+
+  if (unlikely(target->pc != pc)) {
+    basicblock_cache_refill(pc);
+  }
+
+  // A same-index refill overwrites source and its successor fields in place.
+  if (likely(source->pc == source_pc)) {
+    *successor = target;
+  }
+  return target;
+}
+
 #if defined(__GNUC__) && !defined(__clang__)
 #define THREADED_EXEC_ATTR                                                     \
   __attribute__((noinline, noclone,                                             \
@@ -389,6 +409,7 @@ vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
 
   Inst *p;
   vaddr_t next_pc;
+  BasicBlock **successor;
 
 #define DISPATCH()                                                             \
   do {                                                                         \
@@ -396,10 +417,7 @@ vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
     goto *p->code;                                                             \
   } while (0)
 
-block_entry:
-  g_nr_guest_inst += basicblock->count;
-  p = basicblock->insts;
-  goto *basicblock->entry;
+  goto block_entry;
 
 op_lui: {
   InstInf inst_inf = p->inst_inf;
@@ -417,6 +435,7 @@ op_jal: {
   InstInf inst_inf = p->inst_inf;
   R(inst_inf.rd) = inst_inf.pc + 4;
   next_pc = inst_inf.pc + inst_inf.imm;
+  successor = &basicblock->taken;
   goto block_dispatch;
 }
 
@@ -425,50 +444,79 @@ op_jalr: {
   vaddr_t dnpc = (R(inst_inf.rs1) + inst_inf.imm) & (~1);
   R(inst_inf.rd) = inst_inf.pc + 4;
   next_pc = dnpc;
+  successor = &basicblock->taken;
   goto block_dispatch;
 }
 
 op_beq: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                               : inst_inf.pc + 4;
+  if (R(inst_inf.rs1) == R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
 op_bne: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                               : inst_inf.pc + 4;
+  if (R(inst_inf.rs1) != R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
 op_blt: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
-                ? inst_inf.pc + inst_inf.imm
-                : inst_inf.pc + 4;
+  if ((sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
 op_bge: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
-                ? inst_inf.pc + inst_inf.imm
-                : inst_inf.pc + 4;
+  if ((sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
 op_bltu: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                              : inst_inf.pc + 4;
+  if (R(inst_inf.rs1) < R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
 op_bgeu: {
   InstInf inst_inf = p->inst_inf;
-  next_pc = R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                               : inst_inf.pc + 4;
+  if (R(inst_inf.rs1) >= R(inst_inf.rs2)) {
+    next_pc = inst_inf.pc + inst_inf.imm;
+    successor = &basicblock->taken;
+  } else {
+    next_pc = inst_inf.pc + 4;
+    successor = &basicblock->fallthrough;
+  }
   goto block_dispatch;
 }
 
@@ -708,6 +756,7 @@ op_ebreak: {
   InstInf inst_inf = p->inst_inf;
   NEMUTRAP(inst_inf.pc, R(10));
   next_pc = inst_inf.pc + 4;
+  successor = &basicblock->taken;
   goto block_dispatch;
 }
 
@@ -731,11 +780,13 @@ op_ecall: {
   InstInf inst_inf = p->inst_inf;
   isa_raise_intr(11, inst_inf.pc);
   next_pc = CSR(mtvec_addr);
+  successor = &basicblock->taken;
   goto block_dispatch;
 }
 
 op_mret:
   next_pc = CSR(mepc_addr);
+  successor = &basicblock->taken;
   goto block_dispatch;
 
 op_invalid: {
@@ -746,6 +797,7 @@ op_invalid: {
 
 op_end:
   next_pc = p->inst_inf.pc;
+  successor = &basicblock->fallthrough;
   goto block_dispatch;
 
 block_dispatch: {
@@ -754,11 +806,22 @@ block_dispatch: {
     return next_pc;
   }
 
-  uint32_t index = (next_pc & 0xFFF) >> 2;
-  basicblock = &basicblock_cache[index];
-  if (unlikely(basicblock->pc != next_pc)) {
-    basicblock_cache_refill(next_pc);
+  BasicBlock *cached = *successor;
+  if (unlikely(cached->pc != next_pc)) {
+    goto successor_miss;
   }
+  basicblock = cached;
+  g_nr_guest_inst += cached->count;
+  p = cached->insts;
+  goto *cached->entry;
+
+block_entry:
+  g_nr_guest_inst += basicblock->count;
+  p = basicblock->insts;
+  goto *basicblock->entry;
+
+successor_miss:
+  basicblock = basicblock_cache_resolve(basicblock, successor, next_pc);
   goto block_entry;
 }
 
@@ -819,6 +882,9 @@ void basicblock_cache_refill(vaddr_t pc) {
   }
 
   basicblock_cache[index].pc = pc;
+  // Cache entries never move, so self is a safe non-NULL cold sentinel.
+  basicblock_cache[index].taken = &basicblock_cache[index];
+  basicblock_cache[index].fallthrough = &basicblock_cache[index];
   basicblock_cache[index].insts[count] = decode(pc);
   basicblock_cache[index].entry = basicblock_cache[index].insts[0].code;
 
