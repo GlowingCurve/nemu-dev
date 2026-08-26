@@ -15,3 +15,7 @@
 
 INC_PATH += $(NEMU_HOME)/src/isa/$(GUEST_ISA)/include
 DIRS-y += src/isa/$(GUEST_ISA)
+
+ifeq ($(GUEST_ISA),riscv32)
+NON_LTO_SRCS += src/isa/riscv32/inst.c
+endif

@@ -95,6 +95,8 @@ enum {
   OP_CSRRS,
   OP_ECALL,
   OP_MRET,
+  OP_END,
+  NUM_OPS,
 };
 
 struct InstInf {
@@ -110,6 +112,7 @@ typedef struct InstInf InstInf;
 struct Inst {
   InstInf inst_inf;
   uint8_t opcode;
+  void *code;
 };
 
 typedef struct Inst Inst;
@@ -119,12 +122,15 @@ typedef struct Inst Inst;
 struct BasicBlock {
   uint32_t pc;
   uint32_t count;
-  Inst insts[MAX_INST_LENGTH];
+  Inst insts[MAX_INST_LENGTH + 1];
 };
 
 typedef struct BasicBlock BasicBlock;
 
 BasicBlock basicblock_cache[1024] = {};
+
+static void *op_table[NUM_OPS] = {};
+static bool op_table_initialized = false;
 
 #define src1R()                                                                \
   do {                                                                         \
@@ -163,190 +169,8 @@ BasicBlock basicblock_cache[1024] = {};
     csr_t = CSR(imm);                                                          \
   } while (0)
 
-static inline vaddr_t lui(InstInf inst_inf) {
-  R(inst_inf.rd) = inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t auipc(InstInf inst_inf) {
-  R(inst_inf.rd) = inst_inf.pc + inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t lb(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 1), 7, 0), 8);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t lw(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 4);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t lh(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 2), 15, 0), 16);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t lbu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 1);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t lhu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sb(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  Mw(src1 + inst_inf.imm, 1, src2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sh(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  Mw(src1 + inst_inf.imm, 2, src2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sw(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  Mw(src1 + inst_inf.imm, 4, src2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t addi(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) + inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t slti(InstInf inst_inf) {
-  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)inst_inf.imm ? 1 : 0;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sltiu(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) < (word_t)inst_inf.imm ? 1 : 0;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t xori(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) ^ inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t ori(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) | inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t andi(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) & inst_inf.imm;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t slli(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) << (inst_inf.imm & 0x1F);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t srli(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) >> (inst_inf.imm & 0x1F);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t srai(InstInf inst_inf) {
-  R(inst_inf.rd) = (word_t)((sword_t)R(inst_inf.rs1) >> (inst_inf.imm & 0x1F));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t add(InstInf inst_inf) {
-  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) + R(inst_inf.rs2));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sub(InstInf inst_inf) {
-  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) - R(inst_inf.rs2));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sll(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) << (R(inst_inf.rs2) & 0x1F);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t slt(InstInf inst_inf) {
-  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2) ? 1 : 0;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sltu(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) < R(inst_inf.rs2) ? 1 : 0;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t xor(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) ^ R(inst_inf.rs2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t srl(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t sra(InstInf inst_inf) {
-  R(inst_inf.rd) =
-      (word_t)((sword_t)R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t or(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) | R(inst_inf.rs2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t and(InstInf inst_inf) {
-  R(inst_inf.rd) = R(inst_inf.rs1) & R(inst_inf.rs2);
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t mul(InstInf inst_inf) {
-  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) * R(inst_inf.rs2));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t mulh(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (SEXT(src2, 32)), 63, 32));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t mulhsu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (uint64_t)src2, 63, 32));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t mulhu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  R(inst_inf.rd) = (word_t)(BITS((uint64_t)src1 * (uint64_t)src2, 63, 32));
-  return inst_inf.pc + 4;
-}
-
-static word_t _div(word_t src1, word_t src2) {
+static inline __attribute__((always_inline)) word_t _div(word_t src1,
+                                                         word_t src2) {
   if (src1 == 0x80000000 && src2 == 0xFFFFFFFF)
     return 0x80000000;
   if (src2 == 0)
@@ -355,111 +179,14 @@ static word_t _div(word_t src1, word_t src2) {
     return ((sword_t)src1) / ((sword_t)src2);
 }
 
-static word_t _rem(word_t src1, word_t src2) {
+static inline __attribute__((always_inline)) word_t _rem(word_t src1,
+                                                         word_t src2) {
   if (src1 == 0x80000000 && src2 == 0xFFFFFFFF)
     return 0;
   if (src2 == 0)
     return src1;
   else
     return ((sword_t)src1) % ((sword_t)src2);
-}
-
-static inline vaddr_t div_inst(InstInf inst_inf) {
-  R(inst_inf.rd) = _div(R(inst_inf.rs1), R(inst_inf.rs2));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t divu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  R(inst_inf.rd) = src2 != 0 ? src1 / src2 : 0xFFFFFFFF;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t rem(InstInf inst_inf) {
-  R(inst_inf.rd) = _rem(R(inst_inf.rs1), R(inst_inf.rs2));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t remu(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  word_t src2 = R(inst_inf.rs2);
-  R(inst_inf.rd) = src2 != 0 ? (word_t)(src1 % src2) : src1;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t csrrw(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
-  CSR(inst_inf.imm) = src1;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t csrrs(InstInf inst_inf) {
-  word_t src1 = R(inst_inf.rs1);
-  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
-  CSR(inst_inf.imm) = CSR(inst_inf.imm) | src1;
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t jal(InstInf inst_inf) {
-  R(inst_inf.rd) = inst_inf.pc + 4;
-  return inst_inf.pc + inst_inf.imm;
-}
-
-static inline vaddr_t jalr(InstInf inst_inf) {
-  vaddr_t dnpc = (R(inst_inf.rs1) + inst_inf.imm) & (~1);
-  R(inst_inf.rd) = inst_inf.pc + 4;
-  return dnpc;
-}
-
-static inline vaddr_t beq(InstInf inst_inf) {
-  return R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
-}
-
-static inline vaddr_t bne(InstInf inst_inf) {
-  return R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
-}
-
-static inline vaddr_t blt(InstInf inst_inf) {
-  return (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
-             ? inst_inf.pc + inst_inf.imm
-             : inst_inf.pc + 4;
-}
-
-static inline vaddr_t bge(InstInf inst_inf) {
-  return (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
-             ? inst_inf.pc + inst_inf.imm
-             : inst_inf.pc + 4;
-}
-
-static inline vaddr_t bltu(InstInf inst_inf) {
-  return R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                           : inst_inf.pc + 4;
-}
-
-static inline vaddr_t bgeu(InstInf inst_inf) {
-  return R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
-}
-
-static inline vaddr_t ecall(InstInf inst_inf) {
-  isa_raise_intr(11, inst_inf.pc);
-  return CSR(mtvec_addr);
-}
-
-static inline vaddr_t mret(InstInf inst_inf) { return CSR(mepc_addr); }
-
-static inline vaddr_t ebreak(InstInf inst_inf) {
-  NEMUTRAP(inst_inf.pc, R(10));
-  return inst_inf.pc + 4;
-}
-
-static inline vaddr_t invalid(InstInf inst_inf) {
-  INV(inst_inf.pc);
-  return inst_inf.pc + 4; // shouldn't get here
 }
 
 static void decode_operand(Decode *s, vaddr_t pc, InstInf *inst_inf, int type) {
@@ -580,117 +307,430 @@ static Inst decode(vaddr_t pc) {
 
   inst.inst_inf = inst_inf;
   inst.opcode = opcode;
+  inst.code = op_table[opcode];
 
   return inst;
 }
 
-static vaddr_t switch_execution(Inst *inst) {
-  switch (inst->opcode) {
-  case OP_LUI:
-    return lui(inst->inst_inf);
-  case OP_AUIPC:
-    return auipc(inst->inst_inf);
-  case OP_JAL:
-    return jal(inst->inst_inf);
-  case OP_JALR:
-    return jalr(inst->inst_inf);
-  case OP_BEQ:
-    return beq(inst->inst_inf);
-  case OP_BNE:
-    return bne(inst->inst_inf);
-  case OP_BLT:
-    return blt(inst->inst_inf);
-  case OP_BGE:
-    return bge(inst->inst_inf);
-  case OP_BLTU:
-    return bltu(inst->inst_inf);
-  case OP_BGEU:
-    return bgeu(inst->inst_inf);
-  case OP_LB:
-    return lb(inst->inst_inf);
-  case OP_LW:
-    return lw(inst->inst_inf);
-  case OP_LH:
-    return lh(inst->inst_inf);
-  case OP_LBU:
-    return lbu(inst->inst_inf);
-  case OP_LHU:
-    return lhu(inst->inst_inf);
-  case OP_SB:
-    return sb(inst->inst_inf);
-  case OP_SH:
-    return sh(inst->inst_inf);
-  case OP_SW:
-    return sw(inst->inst_inf);
-  case OP_ADDI:
-    return addi(inst->inst_inf);
-  case OP_SLTI:
-    return slti(inst->inst_inf);
-  case OP_SLTIU:
-    return sltiu(inst->inst_inf);
-  case OP_XORI:
-    return xori(inst->inst_inf);
-  case OP_ORI:
-    return ori(inst->inst_inf);
-  case OP_ANDI:
-    return andi(inst->inst_inf);
-  case OP_SLLI:
-    return slli(inst->inst_inf);
-  case OP_SRLI:
-    return srli(inst->inst_inf);
-  case OP_SRAI:
-    return srai(inst->inst_inf);
-  case OP_ADD:
-    return add(inst->inst_inf);
-  case OP_SUB:
-    return sub(inst->inst_inf);
-  case OP_SLL:
-    return sll(inst->inst_inf);
-  case OP_SLT:
-    return slt(inst->inst_inf);
-  case OP_SLTU:
-    return sltu(inst->inst_inf);
-  case OP_XOR:
-    return xor(inst->inst_inf);
-  case OP_SRL:
-    return srl(inst->inst_inf);
-  case OP_SRA:
-    return sra(inst->inst_inf);
-  case OP_OR:
-    return or(inst->inst_inf);
-  case OP_AND:
-    return and(inst->inst_inf);
-  case OP_MUL:
-    return mul(inst->inst_inf);
-  case OP_MULH:
-    return mulh(inst->inst_inf);
-  case OP_MULHSU:
-    return mulhsu(inst->inst_inf);
-  case OP_MULHU:
-    return mulhu(inst->inst_inf);
-  case OP_DIV:
-    return div_inst(inst->inst_inf);
-  case OP_DIVU:
-    return divu(inst->inst_inf);
-  case OP_REM:
-    return rem(inst->inst_inf);
-  case OP_REMU:
-    return remu(inst->inst_inf);
-  case OP_EBREAK:
-    return ebreak(inst->inst_inf);
-  case OP_CSRRW:
-    return csrrw(inst->inst_inf);
-  case OP_CSRRS:
-    return csrrs(inst->inst_inf);
-  case OP_ECALL:
-    return ecall(inst->inst_inf);
-  case OP_MRET:
-    return mret(inst->inst_inf);
-  case OP_INVALID:
-  default:
-    return invalid(inst->inst_inf);
+#if defined(__GNUC__) && !defined(__clang__)
+#define THREADED_EXEC_ATTR                                                     \
+  __attribute__((noinline, noclone,                                             \
+                 optimize("no-crossjumping", "no-gcse",                       \
+                          "no-tree-tail-merge")))
+#elif defined(__clang__)
+#define THREADED_EXEC_ATTR __attribute__((noinline))
+#else
+#define THREADED_EXEC_ATTR
+#endif
+
+THREADED_EXEC_ATTR
+vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
+  if (unlikely(basicblock == NULL)) {
+    op_table[OP_INVALID] = &&op_invalid;
+    op_table[OP_LUI] = &&op_lui;
+    op_table[OP_AUIPC] = &&op_auipc;
+    op_table[OP_JAL] = &&op_jal;
+    op_table[OP_JALR] = &&op_jalr;
+    op_table[OP_BEQ] = &&op_beq;
+    op_table[OP_BNE] = &&op_bne;
+    op_table[OP_BLT] = &&op_blt;
+    op_table[OP_BGE] = &&op_bge;
+    op_table[OP_BLTU] = &&op_bltu;
+    op_table[OP_BGEU] = &&op_bgeu;
+    op_table[OP_LB] = &&op_lb;
+    op_table[OP_LW] = &&op_lw;
+    op_table[OP_LH] = &&op_lh;
+    op_table[OP_LBU] = &&op_lbu;
+    op_table[OP_LHU] = &&op_lhu;
+    op_table[OP_SB] = &&op_sb;
+    op_table[OP_SH] = &&op_sh;
+    op_table[OP_SW] = &&op_sw;
+    op_table[OP_ADDI] = &&op_addi;
+    op_table[OP_SLTI] = &&op_slti;
+    op_table[OP_SLTIU] = &&op_sltiu;
+    op_table[OP_XORI] = &&op_xori;
+    op_table[OP_ORI] = &&op_ori;
+    op_table[OP_ANDI] = &&op_andi;
+    op_table[OP_SLLI] = &&op_slli;
+    op_table[OP_SRLI] = &&op_srli;
+    op_table[OP_SRAI] = &&op_srai;
+    op_table[OP_ADD] = &&op_add;
+    op_table[OP_SUB] = &&op_sub;
+    op_table[OP_SLL] = &&op_sll;
+    op_table[OP_SLT] = &&op_slt;
+    op_table[OP_SLTU] = &&op_sltu;
+    op_table[OP_XOR] = &&op_xor;
+    op_table[OP_SRL] = &&op_srl;
+    op_table[OP_SRA] = &&op_sra;
+    op_table[OP_OR] = &&op_or;
+    op_table[OP_AND] = &&op_and;
+    op_table[OP_MUL] = &&op_mul;
+    op_table[OP_MULH] = &&op_mulh;
+    op_table[OP_MULHSU] = &&op_mulhsu;
+    op_table[OP_MULHU] = &&op_mulhu;
+    op_table[OP_DIV] = &&op_div;
+    op_table[OP_DIVU] = &&op_divu;
+    op_table[OP_REM] = &&op_rem;
+    op_table[OP_REMU] = &&op_remu;
+    op_table[OP_EBREAK] = &&op_ebreak;
+    op_table[OP_CSRRW] = &&op_csrrw;
+    op_table[OP_CSRRS] = &&op_csrrs;
+    op_table[OP_ECALL] = &&op_ecall;
+    op_table[OP_MRET] = &&op_mret;
+    op_table[OP_END] = &&op_end;
+    op_table_initialized = true;
+    return 0;
   }
+
+  Inst *p = basicblock->insts;
+
+#define DISPATCH()                                                             \
+  do {                                                                         \
+    p++;                                                                       \
+    goto *p->code;                                                             \
+  } while (0)
+
+  goto *p->code;
+
+op_lui: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = inst_inf.imm;
+  DISPATCH();
 }
+
+op_auipc: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = inst_inf.pc + inst_inf.imm;
+  DISPATCH();
+}
+
+op_jal: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = inst_inf.pc + 4;
+  return inst_inf.pc + inst_inf.imm;
+}
+
+op_jalr: {
+  InstInf inst_inf = p->inst_inf;
+  vaddr_t dnpc = (R(inst_inf.rs1) + inst_inf.imm) & (~1);
+  R(inst_inf.rd) = inst_inf.pc + 4;
+  return dnpc;
+}
+
+op_beq: {
+  InstInf inst_inf = p->inst_inf;
+  return R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+op_bne: {
+  InstInf inst_inf = p->inst_inf;
+  return R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+op_blt: {
+  InstInf inst_inf = p->inst_inf;
+  return (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
+             ? inst_inf.pc + inst_inf.imm
+             : inst_inf.pc + 4;
+}
+
+op_bge: {
+  InstInf inst_inf = p->inst_inf;
+  return (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
+             ? inst_inf.pc + inst_inf.imm
+             : inst_inf.pc + 4;
+}
+
+op_bltu: {
+  InstInf inst_inf = p->inst_inf;
+  return R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                           : inst_inf.pc + 4;
+}
+
+op_bgeu: {
+  InstInf inst_inf = p->inst_inf;
+  return R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                            : inst_inf.pc + 4;
+}
+
+op_lb: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 1), 7, 0), 8);
+  DISPATCH();
+}
+
+op_lw: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 4);
+  DISPATCH();
+}
+
+op_lh: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = SEXT(BITS(Mr(src1 + inst_inf.imm, 2), 15, 0), 16);
+  DISPATCH();
+}
+
+op_lbu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 1);
+  DISPATCH();
+}
+
+op_lhu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = Mr(src1 + inst_inf.imm, 2);
+  DISPATCH();
+}
+
+op_sb: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 1, src2);
+  DISPATCH();
+}
+
+op_sh: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 2, src2);
+  DISPATCH();
+}
+
+op_sw: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  Mw(src1 + inst_inf.imm, 4, src2);
+  DISPATCH();
+}
+
+op_addi: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) + inst_inf.imm;
+  DISPATCH();
+}
+
+op_slti: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)inst_inf.imm ? 1 : 0;
+  DISPATCH();
+}
+
+op_sltiu: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) < (word_t)inst_inf.imm ? 1 : 0;
+  DISPATCH();
+}
+
+op_xori: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) ^ inst_inf.imm;
+  DISPATCH();
+}
+
+op_ori: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) | inst_inf.imm;
+  DISPATCH();
+}
+
+op_andi: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) & inst_inf.imm;
+  DISPATCH();
+}
+
+op_slli: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) << (inst_inf.imm & 0x1F);
+  DISPATCH();
+}
+
+op_srli: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) >> (inst_inf.imm & 0x1F);
+  DISPATCH();
+}
+
+op_srai: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (word_t)((sword_t)R(inst_inf.rs1) >> (inst_inf.imm & 0x1F));
+  DISPATCH();
+}
+
+op_add: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) + R(inst_inf.rs2));
+  DISPATCH();
+}
+
+op_sub: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) - R(inst_inf.rs2));
+  DISPATCH();
+}
+
+op_sll: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) << (R(inst_inf.rs2) & 0x1F);
+  DISPATCH();
+}
+
+op_slt: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2) ? 1 : 0;
+  DISPATCH();
+}
+
+op_sltu: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) < R(inst_inf.rs2) ? 1 : 0;
+  DISPATCH();
+}
+
+op_xor: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) ^ R(inst_inf.rs2);
+  DISPATCH();
+}
+
+op_srl: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F);
+  DISPATCH();
+}
+
+op_sra: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) =
+      (word_t)((sword_t)R(inst_inf.rs1) >> (R(inst_inf.rs2) & 0x1F));
+  DISPATCH();
+}
+
+op_or: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) | R(inst_inf.rs2);
+  DISPATCH();
+}
+
+op_and: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = R(inst_inf.rs1) & R(inst_inf.rs2);
+  DISPATCH();
+}
+
+op_mul: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = (word_t)(R(inst_inf.rs1) * R(inst_inf.rs2));
+  DISPATCH();
+}
+
+op_mulh: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (SEXT(src2, 32)), 63, 32));
+  DISPATCH();
+}
+
+op_mulhsu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((SEXT(src1, 32)) * (uint64_t)src2, 63, 32));
+  DISPATCH();
+}
+
+op_mulhu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = (word_t)(BITS((uint64_t)src1 * (uint64_t)src2, 63, 32));
+  DISPATCH();
+}
+
+op_div: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = _div(R(inst_inf.rs1), R(inst_inf.rs2));
+  DISPATCH();
+}
+
+op_divu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = src2 != 0 ? src1 / src2 : 0xFFFFFFFF;
+  DISPATCH();
+}
+
+op_rem: {
+  InstInf inst_inf = p->inst_inf;
+  R(inst_inf.rd) = _rem(R(inst_inf.rs1), R(inst_inf.rs2));
+  DISPATCH();
+}
+
+op_remu: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  word_t src2 = R(inst_inf.rs2);
+  R(inst_inf.rd) = src2 != 0 ? (word_t)(src1 % src2) : src1;
+  DISPATCH();
+}
+
+op_ebreak: {
+  InstInf inst_inf = p->inst_inf;
+  NEMUTRAP(inst_inf.pc, R(10));
+  return inst_inf.pc + 4;
+}
+
+op_csrrw: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
+  CSR(inst_inf.imm) = src1;
+  DISPATCH();
+}
+
+op_csrrs: {
+  InstInf inst_inf = p->inst_inf;
+  word_t src1 = R(inst_inf.rs1);
+  R(inst_inf.rd) = (word_t)CSR(inst_inf.imm);
+  CSR(inst_inf.imm) = CSR(inst_inf.imm) | src1;
+  DISPATCH();
+}
+
+op_ecall: {
+  InstInf inst_inf = p->inst_inf;
+  isa_raise_intr(11, inst_inf.pc);
+  return CSR(mtvec_addr);
+}
+
+op_mret:
+  return CSR(mepc_addr);
+
+op_invalid: {
+  InstInf inst_inf = p->inst_inf;
+  INV(inst_inf.pc);
+  DISPATCH();
+}
+
+op_end:
+  return p->inst_inf.pc;
+
+#undef DISPATCH
+}
+
+#undef THREADED_EXEC_ATTR
 
 void print_iringbuf() {
   printf("--- IRINGBUF BEGIN ---\n");
@@ -739,6 +779,10 @@ void basicblock_cache_refill(vaddr_t pc) {
   unsigned int index = (pc & 0xFFF) >> 2;
   unsigned int count = 0;
 
+  if (!op_table_initialized) {
+    basicblock_cache_execute(NULL);
+  }
+
   basicblock_cache[index].pc = pc;
   basicblock_cache[index].insts[count] = decode(pc);
 
@@ -748,15 +792,17 @@ void basicblock_cache_refill(vaddr_t pc) {
     pc += 4;
     basicblock_cache[index].insts[count] = decode(pc);
   }
-  basicblock_cache[index].count = count;
-}
 
-vaddr_t basicblock_cache_execute(BasicBlock basicblock) {
-  unsigned int count = basicblock.count;
-  for (int i = 0; i < count; i++) {
-    switch_execution(&basicblock.insts[i]);
+  if ((count == MAX_INST_LENGTH - 1) &&
+      (!is_terminate(basicblock_cache[index].insts[count]))) {
+    Inst *end = &basicblock_cache[index].insts[MAX_INST_LENGTH];
+    *end = (Inst){};
+    end->inst_inf.pc = pc + 4;
+    end->opcode = OP_END;
+    end->code = op_table[OP_END];
   }
-  return switch_execution(&basicblock.insts[count]);
+
+  basicblock_cache[index].count = count;
 }
 
 vaddr_t isa_exec_once(vaddr_t pc) {
@@ -774,6 +820,6 @@ vaddr_t isa_exec_once(vaddr_t pc) {
   if (!is_hitcache(pc)) {
     basicblock_cache_refill(pc);
   }
-  vaddr_t dnpc = basicblock_cache_execute(basicblock_cache[index]);
+  vaddr_t dnpc = basicblock_cache_execute(&basicblock_cache[index]);
   return dnpc;
 }

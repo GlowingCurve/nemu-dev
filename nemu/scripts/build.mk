@@ -27,6 +27,14 @@ LDFLAGS := -O2 $(LDFLAGS)
 
 OBJS = $(SRCS:%.c=$(OBJ_DIR)/%.o) $(CXXSRC:%.cc=$(OBJ_DIR)/%.o)
 
+# Some interpreter translation units rely on distinct computed-goto sites.
+# Compiling them to native objects prevents link-time tail merging while the
+# rest of the binary can still use LTO.
+NON_LTO_OBJS := $(NON_LTO_SRCS:%.c=$(OBJ_DIR)/%.o)
+ifneq ($(strip $(NON_LTO_OBJS)),)
+$(NON_LTO_OBJS): CFLAGS := $(filter-out -flto%,$(CFLAGS))
+endif
+
 # Compilation patterns
 $(OBJ_DIR)/%.o: %.c
 	@echo + CC $<
