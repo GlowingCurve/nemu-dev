@@ -78,16 +78,13 @@ static void exec_once() {
 }
 
 static void execute(uint64_t n) {
-  uint64_t n_orignal = n;
   for (; n > 0; n--) {
     exec_once();
-    // g_nr_guest_inst++;
     // trace_and_difftest(&s, cpu.pc);
     if (nemu_state.state != NEMU_RUNNING)
       break;
     // IFDEF(CONFIG_DEVICE, device_update());
   }
-  g_nr_guest_inst += n_orignal - n;
 }
 
 static void statistic() {

@@ -122,6 +122,7 @@ typedef struct Inst Inst;
 struct BasicBlock {
   uint32_t pc;
   uint32_t count;
+  void *entry;
   Inst insts[MAX_INST_LENGTH + 1];
 };
 
@@ -131,6 +132,10 @@ BasicBlock basicblock_cache[1024] = {};
 
 static void *op_table[NUM_OPS] = {};
 static bool op_table_initialized = false;
+
+extern uint64_t g_nr_guest_inst;
+
+void basicblock_cache_refill(vaddr_t pc);
 
 #define src1R()                                                                \
   do {                                                                         \
@@ -382,7 +387,8 @@ vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
     return 0;
   }
 
-  Inst *p = basicblock->insts;
+  Inst *p;
+  vaddr_t next_pc;
 
 #define DISPATCH()                                                             \
   do {                                                                         \
@@ -390,7 +396,10 @@ vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
     goto *p->code;                                                             \
   } while (0)
 
-  goto *p->code;
+block_entry:
+  g_nr_guest_inst += basicblock->count;
+  p = basicblock->insts;
+  goto *basicblock->entry;
 
 op_lui: {
   InstInf inst_inf = p->inst_inf;
@@ -407,52 +416,60 @@ op_auipc: {
 op_jal: {
   InstInf inst_inf = p->inst_inf;
   R(inst_inf.rd) = inst_inf.pc + 4;
-  return inst_inf.pc + inst_inf.imm;
+  next_pc = inst_inf.pc + inst_inf.imm;
+  goto block_dispatch;
 }
 
 op_jalr: {
   InstInf inst_inf = p->inst_inf;
   vaddr_t dnpc = (R(inst_inf.rs1) + inst_inf.imm) & (~1);
   R(inst_inf.rd) = inst_inf.pc + 4;
-  return dnpc;
+  next_pc = dnpc;
+  goto block_dispatch;
 }
 
 op_beq: {
   InstInf inst_inf = p->inst_inf;
-  return R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
+  next_pc = R(inst_inf.rs1) == R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                               : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_bne: {
   InstInf inst_inf = p->inst_inf;
-  return R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
+  next_pc = R(inst_inf.rs1) != R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                               : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_blt: {
   InstInf inst_inf = p->inst_inf;
-  return (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
-             ? inst_inf.pc + inst_inf.imm
-             : inst_inf.pc + 4;
+  next_pc = (sword_t)R(inst_inf.rs1) < (sword_t)R(inst_inf.rs2)
+                ? inst_inf.pc + inst_inf.imm
+                : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_bge: {
   InstInf inst_inf = p->inst_inf;
-  return (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
-             ? inst_inf.pc + inst_inf.imm
-             : inst_inf.pc + 4;
+  next_pc = (sword_t)R(inst_inf.rs1) >= (sword_t)R(inst_inf.rs2)
+                ? inst_inf.pc + inst_inf.imm
+                : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_bltu: {
   InstInf inst_inf = p->inst_inf;
-  return R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                           : inst_inf.pc + 4;
+  next_pc = R(inst_inf.rs1) < R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                              : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_bgeu: {
   InstInf inst_inf = p->inst_inf;
-  return R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
-                                            : inst_inf.pc + 4;
+  next_pc = R(inst_inf.rs1) >= R(inst_inf.rs2) ? inst_inf.pc + inst_inf.imm
+                                               : inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_lb: {
@@ -690,7 +707,8 @@ op_remu: {
 op_ebreak: {
   InstInf inst_inf = p->inst_inf;
   NEMUTRAP(inst_inf.pc, R(10));
-  return inst_inf.pc + 4;
+  next_pc = inst_inf.pc + 4;
+  goto block_dispatch;
 }
 
 op_csrrw: {
@@ -712,11 +730,13 @@ op_csrrs: {
 op_ecall: {
   InstInf inst_inf = p->inst_inf;
   isa_raise_intr(11, inst_inf.pc);
-  return CSR(mtvec_addr);
+  next_pc = CSR(mtvec_addr);
+  goto block_dispatch;
 }
 
 op_mret:
-  return CSR(mepc_addr);
+  next_pc = CSR(mepc_addr);
+  goto block_dispatch;
 
 op_invalid: {
   InstInf inst_inf = p->inst_inf;
@@ -725,7 +745,22 @@ op_invalid: {
 }
 
 op_end:
-  return p->inst_inf.pc;
+  next_pc = p->inst_inf.pc;
+  goto block_dispatch;
+
+block_dispatch: {
+  cpu.pc = next_pc;
+  if (unlikely(nemu_state.state != NEMU_RUNNING)) {
+    return next_pc;
+  }
+
+  uint32_t index = (next_pc & 0xFFF) >> 2;
+  basicblock = &basicblock_cache[index];
+  if (unlikely(basicblock->pc != next_pc)) {
+    basicblock_cache_refill(next_pc);
+  }
+  goto block_entry;
+}
 
 #undef DISPATCH
 }
@@ -785,6 +820,7 @@ void basicblock_cache_refill(vaddr_t pc) {
 
   basicblock_cache[index].pc = pc;
   basicblock_cache[index].insts[count] = decode(pc);
+  basicblock_cache[index].entry = basicblock_cache[index].insts[0].code;
 
   while ((count < MAX_INST_LENGTH - 1) &&
          (!is_terminate(basicblock_cache[index].insts[count]))) {
@@ -802,7 +838,7 @@ void basicblock_cache_refill(vaddr_t pc) {
     end->code = op_table[OP_END];
   }
 
-  basicblock_cache[index].count = count;
+  basicblock_cache[index].count = count + 1;
 }
 
 vaddr_t isa_exec_once(vaddr_t pc) {
