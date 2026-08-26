@@ -570,6 +570,5 @@ vaddr_t isa_exec_once(vaddr_t pc) {
   }
   vaddr_t dnpc = inst->handler(inst->inst_inf);
   R(0) = 0;
-  CSR(mstatus_addr) = 0x1800;
   return dnpc;
 }
