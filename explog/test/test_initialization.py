@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from conftest import run_git
 
-from explog.errors import DirectoryError, GitError, LogError, ScriptError
+from explog.errors import ConfigError, DirectoryError, GitError, LogError, ScriptError
 from explog.initialization import initialize_environment
 from explog.log import append_record, read_log
 
@@ -16,12 +16,14 @@ def write_config(
     path: Path,
     *,
     data_root: str = "experiment-data",
+    log: str = "experiments.jsonl",
     experiment_scripts: list[list[str]] | None = None,
     processing_scripts: list[list[str]] | None = None,
 ) -> None:
     path.write_text(
         "\n".join(
             [
+                f"log = {json.dumps(log)}",
                 f"data_root = {json.dumps(data_root)}",
                 f"experiment_scripts = {json.dumps(experiment_scripts or [])}",
                 f"data_processing_scripts = {json.dumps(processing_scripts or [])}",
@@ -231,3 +233,32 @@ def test_repository_without_head_fails_without_writes(tmp_path: Path) -> None:
 
     assert not (tmp_path / "experiments.jsonl").exists()
     assert not (tmp_path / "experiment-data").exists()
+
+
+def test_missing_config_creates_empty_template_without_other_writes(
+    git_repo: Path,
+) -> None:
+    config_path = git_repo / "explog.toml"
+
+    with pytest.raises(ConfigError, match="created empty config template"):
+        initialize_environment(config_path=Path("explog.toml"), cwd=git_repo)
+
+    assert config_path.read_text(encoding="utf-8") == (
+        'log = ""\n'
+        'data_root = ""\n'
+        "experiment_scripts = []\n"
+        "data_processing_scripts = []\n"
+    )
+    assert not (git_repo / "experiments.jsonl").exists()
+    assert not (git_repo / "experiment-data").exists()
+
+
+def test_log_path_defaults_to_config_log(git_repo: Path, config_file: Path) -> None:
+    result = initialize_environment(
+        config_path=Path("explog.toml"),
+        cwd=git_repo,
+    )
+
+    assert result.log_path == git_repo / "experiments.jsonl"
+    assert result.log_created is True
+    assert (git_repo / "experiments.jsonl").read_bytes() == b""

@@ -5,6 +5,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from explog.config import load_config
 from explog.errors import ExplogError
 from explog.initialization import InitializationResult, initialize_environment
 from explog.listing import format_nodes, list_nodes
@@ -18,7 +19,11 @@ def _add_run_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Run scripts and append a Git-aware experiment node to JSONL.",
     )
     parser.add_argument("--config", required=True, type=Path, help="TOML config path")
-    parser.add_argument("--log", required=True, type=Path, help="JSONL log path")
+    parser.add_argument(
+        "--log",
+        type=Path,
+        help="JSONL log path (default: log path from the config file)",
+    )
     parser.add_argument("--message", required=True, help="experiment message")
     parser.add_argument(
         "--parent-id", metavar="ID", help="existing parent experiment ID"
@@ -44,8 +49,7 @@ def _add_init_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--log",
         type=Path,
-        default=Path("experiments.jsonl"),
-        help="JSONL log path (default: experiments.jsonl)",
+        help="JSONL log path (default: log path from the config file)",
     )
     parser.set_defaults(handler=_run_init)
 
@@ -57,10 +61,15 @@ def _add_list_parser(subparsers: argparse._SubParsersAction) -> None:
         description="List experiments from a JSONL log in chronological order.",
     )
     parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("explog.toml"),
+        help="TOML config path (default: explog.toml)",
+    )
+    parser.add_argument(
         "--log",
         type=Path,
-        default=Path("experiments.jsonl"),
-        help="JSONL log path (default: experiments.jsonl)",
+        help="JSONL log path (default: log path from the config file)",
     )
     parser.set_defaults(handler=_run_list)
 
@@ -119,7 +128,12 @@ def _run_experiment(arguments: argparse.Namespace) -> int:
 
 
 def _run_list(arguments: argparse.Namespace) -> int:
-    output = format_nodes(list_nodes(arguments.log))
+    log_path = arguments.log
+    if log_path is None:
+        config_path = arguments.config
+        config = load_config(config_path)
+        log_path = (config_path.resolve().parent / config.log).resolve()
+    output = format_nodes(list_nodes(log_path))
     if output:
         print(output)
     return 0

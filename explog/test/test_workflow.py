@@ -20,10 +20,12 @@ def write_config(
     experiment_scripts: list[list[str]],
     processing_scripts: list[list[str]],
     data_root: str = "experiment-data",
+    log: str = "experiments.jsonl",
 ) -> None:
     path.write_text(
         "\n".join(
             [
+                f"log = {json.dumps(log)}",
                 f"data_root = {json.dumps(data_root)}",
                 f"experiment_scripts = {json.dumps(experiment_scripts)}",
                 f"data_processing_scripts = {json.dumps(processing_scripts)}",
@@ -258,6 +260,22 @@ def test_clean_worktree_writes_empty_git_diff(
     node = run_empty(git_repo, config_file, git_repo / "log.jsonl", "clean")
 
     assert (git_repo / node.git_diff_path).read_bytes() == b""
+
+
+def test_log_path_defaults_to_config_log(
+    git_repo: Path, config_file: Path
+) -> None:
+    node = run_experiment(
+        config_path=config_file,
+        message="message",
+        experiment_id="default-log",
+        cwd=git_repo,
+    )
+
+    assert node.id == "default-log"
+    assert [record["id"] for record in read_log(git_repo / "experiments.jsonl")] == [
+        "default-log"
+    ]
 
 
 def test_diff_write_failure_keeps_directory_and_does_not_run_scripts_or_log(

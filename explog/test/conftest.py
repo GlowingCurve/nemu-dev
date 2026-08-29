@@ -34,6 +34,7 @@ def config_file(git_repo: Path) -> Path:
     path.write_text(
         "\n".join(
             [
+                'log = "experiments.jsonl"',
                 'data_root = "experiment-data"',
                 "experiment_scripts = []",
                 "data_processing_scripts = []",

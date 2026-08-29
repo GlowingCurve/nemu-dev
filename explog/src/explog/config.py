@@ -10,12 +10,14 @@ from explog.errors import ConfigError
 
 @dataclass(frozen=True)
 class Config:
+    log: Path
     data_root: Path
     experiment_scripts: tuple[tuple[str, ...], ...]
     data_processing_scripts: tuple[tuple[str, ...], ...]
 
 
 _CONFIG_KEYS = {
+    "log",
     "data_root",
     "experiment_scripts",
     "data_processing_scripts",
@@ -52,6 +54,12 @@ def load_config(path: Path) -> Config:
     if unknown:
         raise ConfigError(f"unknown config key(s): {', '.join(sorted(unknown))}")
 
+    log = raw["log"]
+    if not isinstance(log, str) or not log:
+        raise ConfigError("log must be a non-empty string")
+    if "\x00" in log:
+        raise ConfigError("log must not contain a NUL character")
+
     data_root = raw["data_root"]
     if not isinstance(data_root, str) or not data_root:
         raise ConfigError("data_root must be a non-empty string")
@@ -59,6 +67,7 @@ def load_config(path: Path) -> Config:
         raise ConfigError("data_root must not contain a NUL character")
 
     return Config(
+        log=Path(log),
         data_root=Path(data_root),
         experiment_scripts=_parse_commands(
             raw["experiment_scripts"], "experiment_scripts"

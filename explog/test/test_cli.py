@@ -60,8 +60,9 @@ def test_init_and_list_parsers_have_defaults() -> None:
     init_arguments = subcommands["init"].parse_args([])
     list_arguments = subcommands["list"].parse_args([])
     assert init_arguments.config == Path("explog.toml")
-    assert init_arguments.log == Path("experiments.jsonl")
-    assert list_arguments.log == Path("experiments.jsonl")
+    assert init_arguments.log is None
+    assert list_arguments.config == Path("explog.toml")
+    assert list_arguments.log is None
 
 
 def test_legacy_run_invocation_is_rejected(capsys: pytest.CaptureFixture[str]) -> None:
@@ -144,3 +145,81 @@ def test_cli_initializes_with_defaults(
     output = capsys.readouterr().out
     assert "explog environment is ready" in output
     assert f"Config: {config_file}" in output
+
+
+def test_cli_init_creates_empty_config_template(
+    git_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(git_repo)
+
+    exit_code = main(["init"])
+
+    assert exit_code == 1
+    assert (git_repo / "explog.toml").read_text(encoding="utf-8") == (
+        'log = ""\n'
+        'data_root = ""\n'
+        "experiment_scripts = []\n"
+        "data_processing_scripts = []\n"
+    )
+    assert "created empty config template" in capsys.readouterr().err
+    assert not (git_repo / "experiments.jsonl").exists()
+
+
+def test_cli_run_defaults_to_config_log_path(
+    git_repo: Path,
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(git_repo)
+
+    exit_code = main(
+        [
+            "run",
+            "--config",
+            str(config_file),
+            "--message",
+            "test",
+            "--id",
+            "chosen-id",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out == "chosen-id\n"
+    assert '"chosen-id"' in (git_repo / "experiments.jsonl").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_cli_list_defaults_to_config_log_path(
+    git_repo: Path,
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(git_repo)
+    assert (
+        main(
+            [
+                "run",
+                "--config",
+                str(config_file),
+                "--message",
+                "listed",
+                "--id",
+                "listed-id",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert main(["list"]) == 0
+
+    captured = capsys.readouterr()
+    assert "listed-id" in captured.out
+    assert captured.err == ""

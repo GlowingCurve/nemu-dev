@@ -11,6 +11,7 @@ def test_load_config(tmp_path: Path) -> None:
     config_path.write_text(
         "\n".join(
             [
+                'log = "experiments.jsonl"',
                 'data_root = "data"',
                 'experiment_scripts = [["python3", "run.py"]]',
                 'data_processing_scripts = [["python3", "process.py", "--fast"]]',
@@ -20,6 +21,7 @@ def test_load_config(tmp_path: Path) -> None:
     )
 
     assert load_config(config_path) == Config(
+        log=Path("experiments.jsonl"),
         data_root=Path("data"),
         experiment_scripts=(("python3", "run.py"),),
         data_processing_scripts=(("python3", "process.py", "--fast"),),
@@ -34,18 +36,28 @@ def test_load_config(tmp_path: Path) -> None:
             "missing config key",
         ),
         (
-            'data_root = "data"\nexperiment_scripts = []\n'
-            "data_processing_scripts = []\nextra = true\n",
+            'log = "experiments.jsonl"\ndata_root = "data"\n'
+            "experiment_scripts = []\n",
+            "missing config key",
+        ),
+        (
+            'log = "experiments.jsonl"\ndata_root = "data"\n'
+            'experiment_scripts = []\ndata_processing_scripts = []\nextra = true\n',
             "unknown config key",
         ),
         (
-            'data_root = "data"\nexperiment_scripts = ["python3"]\n'
-            "data_processing_scripts = []\n",
+            'log = ""\ndata_root = "data"\n'
+            "experiment_scripts = []\ndata_processing_scripts = []\n",
+            "log must be a non-empty string",
+        ),
+        (
+            'log = "experiments.jsonl"\ndata_root = "data"\n'
+            'experiment_scripts = ["python3"]\ndata_processing_scripts = []\n',
             "non-empty argv array",
         ),
         (
-            'data_root = "data"\nexperiment_scripts = [[1]]\n'
-            "data_processing_scripts = []\n",
+            'log = "experiments.jsonl"\ndata_root = "data"\n'
+            "experiment_scripts = [[1]]\ndata_processing_scripts = []\n",
             "arguments must all be strings",
         ),
     ],

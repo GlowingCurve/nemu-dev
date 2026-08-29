@@ -1,3 +1,4 @@
+log = "experiments.jsonl"
 data_root = "experiment-data"
 experiment_scripts = [["python3", "scripts/run.py"]]
 data_processing_scripts = [["python3", "scripts/process.py"]]

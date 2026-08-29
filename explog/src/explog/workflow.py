@@ -37,7 +37,7 @@ def _validate_log_state(
 def run_experiment(
     *,
     config_path: Path,
-    log_path: Path,
+    log_path: Path | None = None,
     message: str,
     parent_id: str | None = None,
     experiment_id: str | None = None,
@@ -48,6 +48,8 @@ def run_experiment(
 
     # Preflight: all validation happens before the Git snapshot or any writes.
     config = load_config(config_path)
+    if log_path is None:
+        log_path = (config_path.resolve().parent / config.log).resolve()
     git_root = find_git_root(working_directory)
     chosen_id = generate_id() if experiment_id is None else experiment_id
     validate_id(chosen_id)

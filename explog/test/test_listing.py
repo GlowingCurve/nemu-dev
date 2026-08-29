@@ -62,13 +62,25 @@ def test_list_empty_log_has_no_stdout(
     assert capsys.readouterr().out == ""
 
 
-def test_list_uses_default_path_without_git_or_config(
+def test_list_uses_config_log_path_without_git(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    log_path = tmp_path / "experiments.jsonl"
+    log_path = tmp_path / "custom.jsonl"
     append_record(log_path, _record("standalone", "2026-08-24T08:00:00Z"))
+    (tmp_path / "explog.toml").write_text(
+        "\n".join(
+            [
+                'log = "custom.jsonl"',
+                'data_root = "experiment-data"',
+                "experiment_scripts = []",
+                "data_processing_scripts = []",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path)
 
     assert main(["list"]) == 0
@@ -76,7 +88,10 @@ def test_list_uses_default_path_without_git_or_config(
     captured = capsys.readouterr()
     assert "standalone" in captured.out
     assert captured.err == ""
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["experiments.jsonl"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "custom.jsonl",
+        "explog.toml",
+    ]
 
 
 def test_list_missing_log_is_an_error(

@@ -12,6 +12,13 @@ from explog.errors import ConfigError, DirectoryError, LogError, ScriptError
 from explog.git import find_git_root, inspect_repository
 from explog.log import create_log_parent, initialize_log, read_log
 
+_EMPTY_CONFIG_TEMPLATE = """\
+log = ""
+data_root = ""
+experiment_scripts = []
+data_processing_scripts = []
+"""
+
 
 @dataclass(frozen=True)
 class InitializationResult:
@@ -34,6 +41,23 @@ def _resolve_cli_path(path: Path, working_directory: Path) -> Path:
     if path.is_absolute():
         return path.resolve()
     return (working_directory / path).resolve()
+
+
+def _create_empty_config(resolved_config: Path) -> None:
+    try:
+        with resolved_config.open("x", encoding="utf-8", newline="") as config_file:
+            config_file.write(_EMPTY_CONFIG_TEMPLATE)
+    except FileExistsError:
+        # Another initializer may have created the file after the existence check.
+        return
+    except OSError as error:
+        raise ConfigError(
+            f"cannot create empty config template {resolved_config}: {error}"
+        ) from error
+    raise ConfigError(
+        f"created empty config template: {resolved_config}; "
+        "fill in the values and re-run init"
+    )
 
 
 def _check_executable(executable: str, git_root: Path) -> None:
@@ -66,7 +90,7 @@ def _check_commands(config: Config, git_root: Path) -> None:
 def initialize_environment(
     *,
     config_path: Path,
-    log_path: Path,
+    log_path: Path | None = None,
     cwd: Path | None = None,
 ) -> InitializationResult:
     """Validate and initialize the shared files required by explog."""
@@ -78,14 +102,24 @@ def initialize_environment(
         resolved_config = _resolve_cli_path(config_path, working_directory)
     except (OSError, RuntimeError) as error:
         raise ConfigError(f"cannot resolve config path: {config_path}") from error
-    try:
-        resolved_log = _resolve_cli_path(log_path, working_directory)
-    except (OSError, RuntimeError) as error:
-        raise LogError(f"cannot resolve log path: {log_path}") from error
+    if not resolved_config.exists():
+        _create_empty_config(resolved_config)
+    if log_path is not None:
+        try:
+            resolved_log = _resolve_cli_path(log_path, working_directory)
+        except (OSError, RuntimeError) as error:
+            raise LogError(f"cannot resolve log path: {log_path}") from error
+    else:
+        resolved_log = None
 
     git_root = find_git_root(working_directory)
     repository = inspect_repository(git_root)
     config = load_config(resolved_config)
+    if resolved_log is None:
+        try:
+            resolved_log = (resolved_config.parent / config.log).resolve()
+        except (OSError, RuntimeError) as error:
+            raise LogError(f"cannot resolve log path: {config.log}") from error
     _check_commands(config, git_root)
     data_root = resolve_data_root(git_root, config.data_root)
     if data_root == resolved_log or data_root.is_relative_to(resolved_log):

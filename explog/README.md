@@ -23,13 +23,16 @@ python3 -m explog --help
 
 ## 配置
 
-TOML 文件恰好包含以下三个顶层键:
+TOML 文件恰好包含以下四个顶层键:
 
 ```toml
+log = "experiments.jsonl"
 data_root = "experiment-data"
 experiment_scripts = [["python3", "scripts/run.py"]]
 data_processing_scripts = [["python3", "scripts/process.py"]]
 ```
+
+`log` 是实验日志(JSONL)的存放路径。它是相对于配置文件所在目录的路径,也可以是绝对路径。`run`、`init` 和 `list` 默认使用该路径,命令行的 `--log` 可以覆盖它。
 
 每个脚本都是一个 argv 数组。它必须至少包含一个可执行程序,且每个元素都必须是字符串。允许脚本列表为空。命令会被直接执行、绝不经过 shell,并以 Git 仓库根目录作为工作目录。因此,配置中的相对脚本路径是相对于 Git 根目录的。
 
@@ -65,7 +68,7 @@ experiment-data/
 explog init --config explog.toml --log experiments.jsonl
 ```
 
-这两个选项可以省略,默认值分别是当前目录下的 `explog.toml` 和 `experiments.jsonl`。`init` 会检查当前目录属于一个已有 `HEAD` 的 Git 仓库、配置合法、脚本的可执行程序可用、日志合法且 `data_root` 位于仓库内。工作区中的已跟踪修改和未跟踪文件会被报告,但不会阻止初始化。
+这两个选项都可以省略。`--config` 默认是当前目录下的 `explog.toml`;`--log` 默认使用配置文件中 `log` 字段给出的路径,仅在给出时覆盖它。如果配置文件不存在,`init` 会在该位置创建一个所有键都在、但值为空的配置模板,提示填写后以非零状态退出;填写完成后重新运行 `init` 即可。`init` 会检查当前目录属于一个已有 `HEAD` 的 Git 仓库、配置合法、脚本的可执行程序可用、日志合法且 `data_root` 位于仓库内。工作区中的已跟踪修改和未跟踪文件会被报告,但不会阻止初始化。
 
 检查全部通过后,`init` 会按需创建日志的父目录、`data_root` 和一个空 JSONL 日志。它不会创建实验 ID、`raw` 或 `processed` 目录。该命令可以安全地重复执行:已有的合法日志、数据目录及其中内容都会原样保留。已有日志或路径非法时,初始化会失败而不会覆盖它们。
 
@@ -76,9 +79,9 @@ explog init --config explog.toml --log experiments.jsonl
 CLI 使用固定的子命令结构:
 
 ```text
-explog run  --config CONFIG --log LOG --message MESSAGE [--parent-id ID] [--id ID]
+explog run  --config CONFIG [--log LOG] --message MESSAGE [--parent-id ID] [--id ID]
 explog init [--config CONFIG] [--log LOG]
-explog list [--log LOG]
+explog list [--config CONFIG] [--log LOG]
 ```
 
 使用自动生成的 ID 启动一个根实验:
@@ -115,7 +118,7 @@ explog run \
 
 省略 `--parent-id` 会创建根节点。指定的父节点必须已经存在于同一日志中。
 
-`CONFIG` 和 `LOG` 遵循常规的命令行路径处理规则,以相对路径给出时相对于当前工作目录。直接运行实验时,日志文件的父目录必须已经存在;`explog init` 会按需创建它。
+`CONFIG` 和 `LOG` 遵循常规的命令行路径处理规则,以相对路径给出时相对于当前工作目录。`LOG` 可以省略,此时使用配置文件中 `log` 字段的路径(相对路径相对于配置文件所在目录)。直接运行实验时,日志文件的父目录必须已经存在;`explog init` 会按需创建它。
 
 ## 查看日志
 
@@ -125,7 +128,7 @@ explog run \
 explog list --log experiments.jsonl
 ```
 
-`--log` 可以省略,默认读取当前目录下的 `experiments.jsonl`。`list` 只读取日志:它不加载配置、不检查 Git 仓库,也不修改任何文件,因此可以在非 Git 目录中使用。日志为空时命令成功且不输出内容;日志文件不存在则报错。
+`--log` 可以省略,此时 `list` 会加载 `--config` 指定的配置(默认当前目录下的 `explog.toml`)并使用其中 `log` 字段的路径。给出 `--log` 时则完全不读取配置。`list` 只读取日志:它不检查 Git 仓库,也不修改任何文件,因此可以在非 Git 目录中使用。日志为空时命令成功且不输出内容;日志文件不存在则报错。
 
 输出包含 `TIMESTAMP`、`ID`、`PARENT` 和 `MESSAGE` 四列。根节点的父项显示为 `-`,message 中的换行、回车和 Tab 分别显示为 `\\n`、`\\r` 和 `\\t`。排序时会解析每条记录的带时区 ISO 8601 时间戳并换算到 UTC;时间相同的节点保持它们在 JSONL 中的原始顺序。缺失、非法或不带时区的时间戳会使命令报错。
 
