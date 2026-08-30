@@ -41,3 +41,14 @@ make ARCH=riscv32-nemu mainargs=huge
 make ARCH=riscv32-nemu run 
 ```
 
+### scripts说明
+
+scripts下是脚本，包括进行CPU Isolation的脚本，实验脚本和数据处理脚本
+
+### explog说明
+
+explog下是explog实验日志管理工具的源码，见README.md
+
+explog.toml是explog的配置文件
+
+experiments.jsonl是实验日志文件
