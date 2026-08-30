@@ -10,7 +10,5 @@ leak:libGLX_mesa
 leak:*_dri.so
 
 # Font discovery is started by libdecor/GTK and may outlive this short-running
-# process.  Mesa can also allocate through anonymous JIT-compiled code, which
-# LeakSanitizer reports without a module name.
+# process.
 leak:fc_thread_func
-leak:<unknown module>
