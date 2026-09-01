@@ -1,5 +1,6 @@
 #set page(paper: "a4", margin: (x: 2.3cm, y: 2.5cm))
-#set page(footer: none)
+
+
 
 #set text(
   font: "Noto Serif CJK SC",
@@ -45,7 +46,6 @@
 #set list(indent: 1em, marker: "•")
 #set enum(indent: 1em)
 
-// 三线表：仅保留表顶线、表头分隔线和表底线。
 #let three-line-table(
   columns: 1,
   align: auto,
@@ -60,7 +60,6 @@
   table.hline(stroke: 1pt),
 )
 
-// 带上下边界线的代码图。
 #let ruled-code(body, size: 10pt) = block(
   width: 100%,
   inset: (y: 6pt),
@@ -71,7 +70,7 @@
 #title[更快的NEMU]
 
 #heading(outlined: false)[TL;DR]
-本文记录对NEMU（一个面向教学场景的解释型指令集模拟器）的一次优化实践。本文首先通过*CPU Isolation*构建实验环境，确定NEMU的性能测量方法，然后针对本次实验过程开发了实验日志管理工具*explog*。最后本文以microbench的ref规模作为workload，通过*指令缓存*、*基本块缓存*、*direct threading*等手段对NEMU进行优化后，最终取得了*25.26x*的加速比。
+本文记录对NEMU（一个面向教学场景的解释型指令集模拟器）的一次优化实践。本文首先通过*CPU Isolation*构建实验环境，确定NEMU的性能测量方法，然后针对本次实验过程开发了实验日志管理工具*explog*。最后本文以microbench的ref规模作为workload，通过*指令缓存*、*基本块缓存*、*direct threading*等手段对NEMU进行优化后，最终取得了*25.26x*的加速比。相关代码和实验数据已公开#footnote[代码仓库：https://github.com/GlowingCurve/nemu-dev]。
 #figure(
   image("overview.png"),
   caption: [迭代过程概览]
