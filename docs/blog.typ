@@ -8,6 +8,7 @@
   region: "cn",
 )
 #set par(
+  spacing: 1.4em,
   justify: true,
   leading: 0.8em,
   first-line-indent: 0em,
@@ -24,30 +25,53 @@
 #show heading.where(level: 1): it => block(
   width: 100%,
   above: 2em,
-  below: 1.4em,
+  below: 1.6em,
   align(
     center,
-    text(size: 20pt, weight: "bold", font: "Noto Serif CJK SC", it.body),
+    text(size: 22pt, weight: "bold", font: "Noto Serif CJK SC", it.body),
   ),
 )
 #show heading.where(level: 2): it => block(
   above: 1.8em,
-  below: 1.2em,
-  text(size: 16pt, weight: "bold", font: "Noto Serif CJK SC", it.body),
+  below: 1.4em,
+  text(size: 18pt, weight: "bold", font: "Noto Serif CJK SC", it.body),
 )
 #show heading.where(level: 3): it => block(
   above: 1.4em,
-  below: 0.9em,
+  below: 1.4em,
   text(size: 14pt, weight: "bold", font: "Noto Serif CJK SC", it.body),
 )
 
 #set list(indent: 1em, marker: "•")
 #set enum(indent: 1em)
-#show figure.where(kind: table): set figure.caption(position: top)
+
+// 三线表：仅保留表顶线、表头分隔线和表底线。
+#let three-line-table(
+  columns: 1,
+  align: auto,
+  ..cells,
+) = table(
+  columns: columns,
+  align: align,
+  stroke: none,
+  table.hline(y: 0, stroke: 1pt),
+  table.hline(y: 1, stroke: 0.5pt),
+  ..cells,
+  table.hline(stroke: 1pt),
+)
+
+// 带上下边界线的代码图。
+#let ruled-code(body, size: 10pt) = block(
+  width: 100%,
+  inset: (y: 6pt),
+  stroke: (top: 1pt, bottom: 1pt),
+  text(size: size, body),
+)
+
 #title[更快的NEMU]
 
 #heading(outlined: false)[TL;DR]
-本文记录对NEMU（一个面向教学场景的解释型指令集模拟器）的一次优化实践。本文首先研究了NEMU的性能测量方法，通过*CPU Isolation*构建实验环境，然后针对本次实验过程开发了实验日志管理工具*explog*。最后本文以microbench的ref规模作为workload，通过*指令缓存*、*基本块缓存*、*direct threading*等手段对NEMU进行优化后，最终取得了*25.26x*的加速比。
+本文记录对NEMU（一个面向教学场景的解释型指令集模拟器）的一次优化实践。本文首先通过*CPU Isolation*构建实验环境，确定NEMU的性能测量方法，然后针对本次实验过程开发了实验日志管理工具*explog*。最后本文以microbench的ref规模作为workload，通过*指令缓存*、*基本块缓存*、*direct threading*等手段对NEMU进行优化后，最终取得了*25.26x*的加速比。
 #figure(
   image("overview.png"),
   caption: [迭代过程概览]
@@ -55,10 +79,9 @@
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (0.25fr, 0.25fr, 0.25fr, 0.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*类别*], [*baseline*], [*优化后*], [*变化*],
 
@@ -109,7 +132,7 @@
 
 一个没有经过任何优化的NEMU，其运行ref规模的microbench用时在50到60秒左右。
 
-虽然这个性能在NEMU所面向的场景中已经够用，但是NEMU运行microbench究竟可以运行多快？虽然这个问题很难说有多大的实际意义，但这出于纯粹的好奇心，而且研究这个问题也能接触到性能优化的过程、学习一些技巧。
+虽然这个性能在NEMU所面向的场景中已经够用，但是NEMU运行microbench究竟可以运行多快？虽然这个问题很难说有多大的实际意义，但这出于纯粹的好奇心。
 
 因此，本文的目标为：*以microbench作为workload的情况下，尝试优化NEMU，尽可能提高NEMU的运行速度。*
 
@@ -121,9 +144,8 @@
 #figure(
   {
   set text(size: 10pt)
-  table(
+  three-line-table(
     columns: (35mm, 0.4fr,0.6fr),
-    stroke: 0.35pt,
     [*测试规模*],[*指令数*],[*使用场景*],
     [test],[约300K],[ 正确性测试],
     [train],[约60M],[在RTL仿真环境中研究微结构行为],
@@ -136,9 +158,8 @@
 #figure(
   {
     set text(size: 10pt)
-  table(
+  three-line-table(
     columns: (35mm,1fr ),
-    stroke: 0.35pt,
     [*名称*],[*描述*],
     [qsort],[快速排序随机整数数组],
     [queen],[位运算实现的n皇后问题],
@@ -159,7 +180,7 @@
 
 == 限定条件
 
-本文所选择的NEMU来自我实际的一生一芯项目。原始NEMU面向日常使用和开发场景，没有经过任何的优化，可以运行RT-Thread，是我进行一生一芯C阶段答辩时的配置。
+本文所选择的NEMU来自我实际的一生一芯项目仓库。作为baseline的原始NEMU面向日常使用和开发场景，没有经过任何的优化，可以运行RT-Thread，是我进行一生一芯C阶段答辩时的配置。
 
 本文做出如下限定：
 
@@ -174,9 +195,8 @@
 #figure(
   {
     set text(size: 10pt)
-    table(
+    three-line-table(
       columns: (35mm, 1fr),
-      stroke: 0.35pt ,
       [*类别*], [*配置*],
       [操作系统], [Fedora Linux 44 Workstation],
       [Linux内核版本], [7.1.8-200.fc44.x86_64],
@@ -206,7 +226,7 @@ Linux 提供了一组 CPU Isolation 机制，可以减少目标 CPU 上与实验
 
 + *调度噪声*: 通过 cgroup v2 的 `cpuset partition` 将一个完整物理核心划入 `isolated partition`，使其与普通工作负载的调度域分离。与此同时，调整 per-CPU 内核线程和 watchdog 的 CPU 掩码，尽量避免内核延迟任务和 watchdog 事务在目标 CPU 上执行。
 
-+ *频率噪声*: 通过 `cpufreq` 接口将目标 CPU 的调频器和能效偏好设置为最高性能的`performance`挡，同时将最高频率限制为 4 GHz。实验平台 CPU最高加速频率可达 5.46 GHz，将最高频率限制在 4 GHz可以减少动态调频以及功耗、温度变化对测量结果的影响，有助于长时间保持CPU频率。
++ *频率噪声*: 通过 `cpufreq` 接口将目标 CPU 的调频器和能效偏好设置为最高性能的`performance`挡，同时将最高频率限制为 4 GHz。实验平台 CPU最高加速频率可达 5.46 GHz，将最高频率限制在 4 GHz有助于长时间保持CPU频率，可以减少动态调频以及功耗、温度变化对测量结果的影响。
 
 + *中断噪声*: 重新配置中断亲和性，将可以迁移的中断尽量移出隔离 CPU，减少实验运行期间由外部设备和系统活动造成的打断。
 
@@ -252,7 +272,7 @@ Git虽然可以记录代码变化，但无法直接维护代码、实验、原�
 
 针对这一问题，本文实现了实验日志管理工具`explog`。
 
-== 实验模型
+== 核心模型
 
 `explog` 将一次完整实验表示为一个 `ExperimentNode`。一个实验节点既描述一次实验时的代码状态，也描述实验数据。
 
@@ -273,9 +293,8 @@ Git虽然可以记录代码变化，但无法直接维护代码、实验、原�
 配置文件 `explog.toml` 定义实验数据根目录、实验日志目录，数据采集命令和数据处理命令。实验日志采用 JSONL 格式保存，每一行对应一个 `ExperimentNode`。
 
 #figure(
-  table(
+  three-line-table(
     columns: (0.5fr, 1fr),
-    stroke: 0.35pt,
     [*字段*],[*描述*],
     [`id`],[实验节点的唯一标识],
     [`parent_id`],[父节点 ID，根节点为 `null`],
@@ -297,8 +316,8 @@ JSONL 日志只保存节点元数据和文件路径。体积较大的代码 diff
 执行一次实验时，`explog` 依次完成以下步骤：
 
 + 加载并校验配置文件，检查实验 ID、父节点 ID、目标数据目录和实验日志路径；
-+ 执行 `git add -N -- .`，使未被忽略的 untracked 文件可以进入 diff；
-+ 使用 `git diff --binary --full-index --no-ext-diff HEAD --` 捕获当前工作区相对于 `HEAD` 的完整修改；
++ 执行git命令，使未被忽略的 untracked 文件可以进入 diff；
++ 执行命令，使用git捕获当前工作区相对于 `HEAD` 的完整修改；
 + 创建本次实验的数据目录，并将代码修改保存为 `git.diff`；
 + 运行数据采集命令
 + 运行数据处理命令
@@ -317,9 +336,8 @@ JSONL 日志只保存节点元数据和文件路径。体积较大的代码 diff
 #figure(
   {
     set text(size: 8.25pt)
-    table(
+    three-line-table(
       columns: (25mm, 25mm, 0.25fr,0.25fr, 0.25fr),
-      stroke: 0.35pt,
       [*场景*], [*$n$*], [*均值/s*],  [*99% CI/s*], [*RMOE/%*],
       [无perf], [10], [47.9889], [47.9711--48.0068], [0.0372],
       [有perf], [10], [47.9815],  [47.9527--48.0102], [0.0599],
@@ -339,10 +357,9 @@ JSONL 日志只保存节点元数据和文件路径。体积较大的代码 diff
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (0.8fr, 0.8fr, 0.8fr, 1.25fr, 1fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化*],
         [*加速比*],
@@ -379,14 +396,14 @@ JSONL 日志只保存节点元数据和文件路径。体积较大的代码 diff
     kind: table,
 )
 
-以上结果说明编译器消除了相当一部分 host 侧指令。但从 -O2 继续启用 LTO、再提升至 -O3，带来的增量收益已经明显减小。此时继续调整编译选项很难取得明显的性能变化，需要进一步分析 NEMU 的性能。
+以上结果说明编译器消除了相当一部分 host 侧指令。但从 -O2 继续启用 LTO(Link-time Optimization)、再提升至 -O3，带来的增量收益已经明显减小。此时继续调整编译选项很难取得明显的性能变化，需要进一步分析 NEMU 的性能。
 
 === 移除设备轮询
 
 在 -O3 + LTO 版本上进行 `perf` 采样后，发现 85.35% 的 cycles 落在 `get_time` 调用链中：
 
 #figure(
-text(size:10pt)[
+ruled-code(size: 10pt)[
 ```text
  # Overhead  Command          Shared Object             Symbol
   # ........  ...............  ........................  .....................................
@@ -424,10 +441,9 @@ NEMU 启用设备支持后，原始执行循环每执行一条 guest instruction
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.7fr, 0.8fr, 1fr, 1.25fr, 1.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化配置*],
         [*加速比*],
@@ -460,7 +476,7 @@ NEMU 启用设备支持后，原始执行循环每执行一条 guest instruction
 移除 `device_update()` 后，原有热点已经消失。重新进行 `perf` 采样。
 
 #figure(
-  text(size: 10pt)[
+  ruled-code(size: 10pt)[
     ```text
     # Overhead  Command           Shared Object             Symbol
     # ........  ...............   ........................  .....................................
@@ -485,7 +501,7 @@ NEMU 启用设备支持后，原始执行循环每执行一条 guest instruction
 为了判断译码函数中是否还存在明显的实现开销，本文进一步检查了与译码有关的汇编。
 
 #figure(
-  text(size:10pt)[
+  ruled-code(size: 10pt)[
 ```text
 ...
 6.75 :   22c8:        andl    $0x7f, %edx
@@ -505,7 +521,7 @@ NEMU 启用设备支持后，原始执行循环每执行一条 guest instruction
   caption:[`decode_exec.isra.0`汇编代码片段]
 )
 
-NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条件跳转。继续优化 decoder 只能尝试降低一次译码的成本，就算可以优化性能提升也会极为有限。
+NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条件跳转。继续优化 decoder 只能尝试降低一次译码的开销，性能提升空间极为有限。
 
 因此，本文尝试减少译码过程发生的次数。
 
@@ -516,9 +532,8 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.25fr, 0.8fr),
-        stroke: 0.35pt,
 
         [*类别*],
         [*数据*],
@@ -536,7 +551,7 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
         [$99.4%$]
       )
     },
-    caption: [guest PC出现次数统计],
+    caption: [guest PC 统计指标],
     kind: table,
   )
 #figure(
@@ -546,7 +561,7 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 
 上述结果说明，microbench 的执行集中在一个很小的PC集合中。由于microbench不包括自修改代码，这一结果说明NEMU 正在对少量相同指令进行大量重复译码。
 
-既然绝大部分动态指令都来自已经执行过的 PC，与其继续降低每次译码的成本，不如缓存得到的译码结果，在后续执行中复用。这就是 *InstCache*。
+既然绝大部分动态指令都来自已经执行过的 PC，与其继续降低每次译码的成本，不如缓存得到的译码结果，在后续执行中复用。这就是指令缓存(*InstCache*）。
 
 === 重构执行路径
 
@@ -559,10 +574,9 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.7fr, 0.8fr, 0.8fr, 1.25fr, 1.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化*],
         [*加速比*],
@@ -613,11 +627,9 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.25fr, 0.8fr, 1fr, 1.25fr, 1fr),
         align: center + horizon,
-
-        stroke: 0.35pt,
 
         [*优化*],
         [*加速比*],
@@ -651,10 +663,9 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
  #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (0.8fr, 0.8fr, 1fr, 1.25fr, 1.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*缓存容量*], [*加速比*], [*用时*], [*Host Instructions*],
         [*Host Cycle*],
@@ -693,10 +704,9 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.5fr, 0.8fr, 1fr, 1.25fr, 1.25fr,),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化配置*], [*加速比*], [*用时*], [*Host Instructions*],
         [*Host Cycle*], 
@@ -720,7 +730,7 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
     kind: table,
   )
 
-进一步观察发现，NEMU此时会启动Runtime Check,会使用assert检查程序行为。由于本文围绕microbench开展优化，程序行为已经确认合法，Runtime Check还会带来额外开销，所以本文关闭Runtime Check，性能提升较为有限，具体见附录中表17。
+进一步观察发现，NEMU此时会启动Runtime Check,会使用assert检查程序行为。由于本文围绕microbench开展优化，程序行为已经确认合法，Runtime Check还会带来额外开销，所以本文关闭Runtime Check，性能提升较为有限，具体见附录中表18。
 
 === 更好的Cache 
 
@@ -728,15 +738,15 @@ NEMU 源码中的模式匹配逻辑已经被编译器转换为一组比较和条
 
 对于顺序执行的代码，解释器会反复经过相同的指令序列。即使序列中的每条指令都能命中 InstCache，NEMU 仍然需要为每条指令计算索引、读取缓存项并比较 PC tag。既然一段顺序控制流通常会作为整体重复出现，这些逐指令检查就成了重复工作。
 
-因此，可以将缓存和命中判断的单位从单条指令扩大到多条连续指令，既基本块（*BasicBlock*）。进入BasicBlock时只根据起始 PC 进行一次缓存查找；命中后，块内指令按照已经保存的顺序连续执行，不再逐条检查 InstCache。*BasicBlock*在可能改变顺序控制流的指令处结束。
+因此，可以将缓存和命中判断的单位从单条指令扩大到多条连续指令，即基本块（*BasicBlock*）。进入BasicBlock时只根据起始 PC 进行一次缓存查找；命中后，块内指令按照已经保存的顺序连续执行，不再逐条检查 InstCache。*BasicBlock*在可能改变顺序控制流的指令处结束。
 
-因此本文构建*BasicBlockCache*。
+因此本文构建基本块缓存(*BasicBlockCache*)。
 
 === 适配BasicBlock
 
 BasicBlockCache 会在一次命中后连续执行多条指令，原先“每条指令结束时统一处理”的状态更新必须进行修改。
 
-*保持 x0 语义*
+*保持x0*
 
 RISC-V 的 `x0` 寄存器必须始终为 0，对 `x0` 的写入应当被丢弃。原先的实现允许指令临时写入 `x0`，并在每条指令执行结束后重新将其置为 0。
 
@@ -746,7 +756,7 @@ RISC-V 的 `x0` 寄存器必须始终为 0，对 `x0` 的写入应当被丢弃�
 
 这样，对 `x0` 的写入会落入 Dummy 槽，后续指令读取 `x0` 时仍然得到 0，同时不需要增加逐指令清零操作。
 
-*移除逐指令 mstatus 写回*
+*移除mstatus写回*
 
 原先为了适配 Difftest，NEMU 在每条 guest instruction 执行后都会将 `mstatus` 写回 `0x1800`。本文使用的 microbench 不包含 CSR 相关指令，在当前执行路径中，`mstatus` 始终保持固定值。
 
@@ -758,15 +768,14 @@ RISC-V 的 `x0` 寄存器必须始终为 0，对 `x0` 的写入应当被丢弃�
 
 InstCache 使用函数指针 `handler` 表示指令语义。它避免了重复译码，但每条动态 guest instruction 仍然需要进行一次间接函数调用和一次函数返回。
 
-为了建立统一的块内执行循环，本文将 `handler` 替换为紧凑的 `uint8_t opcode`。译码阶段只记录 opcode 和操作数信息；执行阶段通过 `switch` 根据 opcode 进入对应的指令语义。
+为了建立统一的块内执行循环，本文将 `handler` 替换为 `uint8_t opcode`。译码阶段只记录 opcode 和操作数信息；执行阶段通过 `switch` 根据 opcode 进入对应的指令语义。
 
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (1.5fr, 0.8fr, 1fr, 1.25fr, 1.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化配置*], [*加速比*], [*用时*], [*Host Instructions*],
         [*Host Cycle*],
@@ -802,10 +811,9 @@ InstCache 使用函数指针 `handler` 表示指令语义。它避免了重复�
 #figure(
     {
       set text(size: 9pt)
-      table(
+      three-line-table(
         columns: (2fr, 0.8fr, 0.8fr, 1.5fr, 1.25fr, 1.25fr, 1.25fr),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化配置*], [*加速比*], [*用时*], [*Host Instructions*],
         [*Host Cycle*], [*Branch*], [*Branch Miss*],
@@ -851,7 +859,7 @@ InstCache 使用函数指针 `handler` 表示指令语义。它避免了重复�
 
 
 #figure(
-  text(size: 10pt)[
+  ruled-code(size: 10pt)[
     ```text
     # Overhead  Command          Shared Object             Symbol
     # ........  ...............  ........................  .....................................
@@ -865,7 +873,7 @@ InstCache 使用函数指针 `handler` 表示指令语义。它避免了重复�
   caption: [perf报告局部]
 )
 #figure(
-  text(size:10pt)[
+  ruled-code(size: 10pt)[
     ```text
 : 0    0x3040 <switch_execution>:
 4.54 :   3040:        pushq   %rbp
@@ -881,7 +889,7 @@ InstCache 使用函数指针 `handler` 表示指令语义。它避免了重复�
       ...
     ```
   ],
-  caption: [switch_execution的开头的跳转表分派部分采样信息]
+  caption: [switch_execution的跳转表处部分采样信息]
 )
 `switch_execution` 占采样 cycles 的 69.38%，成为当前最主要的热点。生成的汇编表明，编译器将 opcode `switch` 实现为跳转表。
 
@@ -893,26 +901,15 @@ BasicBlockCache 已经将缓存查找从每条指令一次降低为每个基本�
 
 本文使用 GCC 的 labels-as-values 扩展实现*Direct threading*。初始化时建立 opcode 到局部标签地址的映射；完成译码后，每个 `Inst` 直接保存对应指令语义的标签地址。执行完当前指令后，通过 computed goto 跳转到下一条 `Inst` 保存的目标标签。
 
-具体的，原有执行路径可以概括为：
+实际的Direct threading的执行过程可以概括为：执行当前指令语义；读取下一条指令的目标标签；直接跳转到下一条指令语义。
 
-+ 读取 opcode
-+ 进入 switch
-+ 跳转到指令
-+ 返回公共循环
-+ 处理下一条指令
-
-Direct threading 将其缩减为：
-+ 执行当前指令语义
-+ 读取下一条指令的目标标签
-+ 直接跳转到下一条指令语义
 #figure(
     {
       set text(size: 9pt)
-      table(
+      three-line-table(
         columns: (1.9fr, 0.8fr, 1fr, 1.25fr, 1.25fr, 1.25fr, 1.25fr),
         align: center + horizon,
         inset: 4pt,
-        stroke: 0.35pt,
 
 
         [*优化配置*], [*加速比*], [*用时*], [*Host Instructions*],
@@ -945,17 +942,16 @@ Direct threading 将其缩减为：
 
 === 块间连续分派
 
-Direct threading 削减了基本块内部的控制开销，但一个基本块执行结束后，NEMU仍然需要返回外层循环，由外层循环计算 next PC、查询 BasicBlockCache，再进入目标基本块。对于microbench来说，guest PC极为密集，基本块之间的控制开销也会十分客观。因此，可以在基本块层面进一步做Direct Threading。
+Direct threading 削减了基本块内部的控制开销，但一个基本块执行结束后，NEMU仍然需要返回外层循环，由外层循环计算 next PC、查询 BasicBlockCache，再进入目标基本块。对于microbench来说，guest PC极为密集，基本块之间的控制开销也会十分可观。因此，可以在基本块层面进一步做Direct Threading。
 
 本文做出如下优化：基本块执行结束后，解释器计算 next PC，并直接检查对应的 BasicBlockCache 缓存项；命中时立即进入目标块的第一条指令，未命中时完成 refill 后再进入目标块。这就形成了块间连续分派。
 
 #figure(
     {
       set text(size: 10pt)
-      table(
+      three-line-table(
         columns: (2fr, 0.8fr, 0.7fr, 1.25fr, 1.2fr, ),
         align: center + horizon,
-        stroke: 0.35pt,
 
         [*优化配置*], [*加速比*], [*用时*], [*Host Instructions*],
         [*Host Cycle*], 
@@ -986,57 +982,54 @@ Direct threading 削减了基本块内部的控制开销，但一个基本块执
 
 在方法上，本文首先通过 CPU Isolation 控制了调度、频率和中断三类系统噪声，建立了稳定可重复的实验环境；以 Scored Time 为性能指标，采用重复采样加双侧 99% 置信区间的方式描述测量不确定性，并在结果足够稳定时停止采样。
 
-为了维护优化过程中的代码、实验与数据之间的关系，本文实现了实验日志管理工具 explog，将整个优化过程组织为一棵以 baseline 为根的实验树，保留包括失败实验在内的全部路径。
+为了维护优化过程中的代码、实验与数据之间的关系，本文实现了实验日志管理工具 explog，将整个实验过程组织为一棵实验树，有效管理整体的实验结果。
 
-在优化上，本文遵循"测量——改动——验证"的迭代过程：编译器优化实现 1.20x的加速比；移除与当前 workload 无关的设备轮询提高到 6.09x；基于guest PC 局部性的统计结果，依次引入 InstCache（10.11x）、减少数据复制（11.61x）、BasicBlockCache 及其优化（13.70x）、Direct threading（22.65x）和块间连续分派，最终 Scored Time 从 47.98 s 降至 1.90 s，相对原始 baseline 取得 25.26x 加速。
+本文遵循"测量—改动—验证"的策略进行性能优化：编译器优化实现 1.20x的加速比；移除与当前 workload 无关的设备轮询提高到 6.09x；基于guest PC 局部性的统计结果，依次引入 InstCache（10.11x）、减少数据复制（11.61x）、BasicBlockCache 及其优化（13.70x）、Direct threading（22.65x）和块间连续分派，最终 Scored Time 从 47.98 s 降至 1.90 s，相对原始 baseline 取得 25.26x 加速。
 
-过程中出现多次性能退化：执行路径重构的中间版本（3.31x、2.86x）和首版 BasicBlockCache（10.55x）均出现性能退化。
+过程中出现多次性能退化：执行路径重构的中间版本（3.31x、2.86x）和首版 BasicBlockCache（10.55x）均出现性能退化。过程也出现了多个最终被放弃的实验节点，如512项Inst缓存、2048项Inst缓存等，具体见附录中表18。
 
 == 讨论
 
-*进一步优化*
+*进一步优化*: 实现块间连续分派后，程序热点重新回到指令语义的执行本身。在现有的解释器方案下，执行函数可用的优化手段已经基本用尽，继续提升需要改变执行方式：将热点区域的 guest 代码直接转译为 host 机器码，即引入 JIT。早期探索表明这一方案较BasicBlockCache有数量级的提升空间，但其实现所需的工作量远超本文全部优化的总和，且会显著增加 NEMU 的复杂度。因此本文不将其作为本次目标。
 
-实现块间连续分派后，程序热点重新回到指令语义的执行本身。在现有的解释器方案下，执行函数可用的优化手段已经基本用尽，继续提升需要改变执行方式：将热点区域的 guest 代码直接转译为 host 机器码，即引入 JIT。早期探索表明这一方案较BasicBlockCache有数量级的提升空间，但其实现所需的工作量远超本文全部优化的总和，且会显著增加 NEMU 的复杂度。因此本文不将其作为本次目标。
+*NEMU正确性*: 引入 BasicBlockCache 后，sdb、difftest、trace 等基础设施不再兼容，正确性验证手段相应减少。但本文的所有优化均不改变指令语义本身：InstCache 与 BasicBlockCache 缓存对程序透明；x0 的 Dummy 寄存器和 mstatus 写回的移除在当前 workload 下均不改变程序行为。microbench 本身包含对结果的检查，而每个优化版本均通过全部测试，说明NEMU在当前Workload上可以认为是可靠的。如果要进一步优化，则需要对NEMU的正确性进行检查。
 
-*NEMU正确性*
-
-引入 BasicBlockCache 后，sdb、difftest、trace 等基础设施不再兼容，正确性验证手段相应减少。但本文的所有优化均不改变指令语义本身：InstCache 与 BasicBlockCache 缓存对程序透明；x0 的 Dummy 寄存器和 mstatus 写回的移除在当前 workload 下均不改变程序行为。microbench 本身包含对结果的检查，而每个优化版本均通过全部测试，说明NEMU在当前Workload上可以认为是可靠的。如果要进一步优化，则需要对NEMU的正确性进行检查。
-
-*适用范围* 
-
-本文的结果是针对microbench一个特定的workload而言的：25.26x 的加速比建立在 microbench 不使用外部设备、不包含自修改代码、guest PC高度集中的前提上。对需要键盘,VGA或包含 CSR 操作的其他场景并不适用。
-
-#pagebreak()
+*适用范围*: 本文的结果是针对microbench一个特定的workload而言的：25.26x 的加速比建立在 microbench 不使用外部设备、不包含自修改代码、guest PC高度集中的前提上。对需要键盘,VGA或包含 CSR 操作的其他场景并不适用。
 
 = 附录
 
-以下给出了完整的迭代历史。
+以下给出了完整的迭代历史。描述中含有"\*"表明该实验节点最终被放弃,描述中含有“\*\*”表示该实验节点测量得到的RMOE出现异常。
 
 #figure(
   {
     set text(size: 11pt)
-    table(
-      columns: (0.3fr, 0.25fr, 0.20fr, 0.25fr),
-      stroke: 0.35pt,
-      [*描述*], [*均值/s*], [*RMOE/%*], [*baseline加速*],
-      [baseline], [47.9815], [0.060], [1.00$times$],
-      [Og优化到O2优化], [41.6187], [0.057], [1.15$times$],
-      [开启LTO], [41.2225], [0.083], [1.16$times$],
-      [开启O3优化], [40.0581], [0.019], [1.20$times$],
-      [移除设备轮询], [7.8752], [0.997], [6.09$times$],
-      [拆分执行函数], [6.5109], [0.998], [7.37$times$],
-      [引入函数指针], [14.5062], [0.134], [3.31$times$],
-      [译码执行解耦], [16.7784], [0.224], [2.86$times$],
-      [InstCache], [4.7438], [0.717], [10.11$times$],
-      [关闭运行时检查], [4.6025], [0.370], [10.43$times$],
-      [优化InstCache], [4.1323], [0.384], [11.61$times$],
-      [移除每指令写回mstatus], [4.1426], [0.466], [11.58$times$],
-      [引入opcode + switch], [4.0879], [0.263], [11.74$times$],
-      [精简译码和x0写入], [4.1214], [0.210], [11.64$times$],
-      [BasicBlockCache], [4.5492], [1.929], [10.55$times$],
-      [优化BasicBlockCache], [3.5012], [0.964], [13.70$times$],
-      [direct threading], [2.1185], [0.936], [22.65$times$],
-      [引入块间连续派发], [1.8994], [0.884], [25.26$times$],
+    three-line-table(
+      columns: (0.4fr, 0.3fr, 0.3fr),
+      [*描述*], [*均值/s*], [*加速比*],
+      [baseline], [47.9815], [1.00$times$],
+      [O2优化], [41.6187],  [1.15$times$],
+      [开启LTO], [41.2225], [1.16$times$],
+      [开启O3优化], [40.0581], [1.20$times$],
+      [移除设备轮询], [7.8752], [6.09$times$],
+      [拆分执行函数], [6.5109],[7.37$times$],
+      [引入函数指针], [14.5062],  [3.31$times$],
+      [译码执行解耦], [16.7784],  [2.86$times$],
+      [InstCache], [4.7438], [10.11$times$],
+      [512项InstCache\*], [4.7751], [10.05$times$],
+      [2048项InstCache\*], [4.7177], [10.17$times$],
+      [关闭运行时检查], [4.6025], [10.43$times$],
+      [尝试优化InstCache\*], [6.2326], [7.70$times$],
+      [优化InstCache], [4.1323], [11.61$times$],
+      [第一次尝试引入opcode\*], [4.3198],[11.11$times$],
+      [移除每指令写回mstatus], [4.1426],  [11.58$times$],
+      [第二次引入opcode ], [4.0879],  [11.74$times$],
+      [精简译码和x0写入], [4.1214],  [11.64$times$],
+      [BasicBlockCache\*\*], [4.5492],  [10.55$times$],
+      [优化BasicBlockCache], [3.5012],  [13.70$times$],
+      [最大基本块长度改为16\*], [3.5037], [13.69$times$],
+      [BasicBlockCache扩容\*], [3.5019], [13.70$times$],
+      [direct threading], [2.1185],  [22.65$times$],
+      [引入块间连续派发], [1.8994],  [25.26$times$],
     )
   },
   caption: [最终版本的迭代历史],
