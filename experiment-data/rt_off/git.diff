@@ -1,0 +1,11 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 4ab2e39085a452c5e36c84a3c5c64cf82bde6d86..adb49f5d3216e3bcb6336e78568a316ab10257b7 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -5,3 +5,6 @@
+ {"id":"refactor_0","parent_id":"device_update","timestamp":"2026-08-25T09:18:09.176864Z","message":"trying to refactor decode_exec","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_0/git.diff","data_dir":"experiment-data/refactor_0"}
+ {"id":"refactor_1","parent_id":"refactor_0","timestamp":"2026-08-25T10:05:39.509702Z","message":"conducting refactor","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_1/git.diff","data_dir":"experiment-data/refactor_1"}
+ {"id":"refactor_final","parent_id":"refactor_1","timestamp":"2026-08-25T12:07:05.437306Z","message":"split decode and excute;before add inst-cache","git_commit":"c42b1e55f029fbc2ddd8747bdfab82c1b178ac31","git_diff_path":"experiment-data/refactor_final/git.diff","data_dir":"experiment-data/refactor_final"}
++{"id":"inst-cache","parent_id":"refactor_final","timestamp":"2026-08-25T12:12:39.214977Z","message":"add inst-cache","git_commit":"55633004731a41bb14a1600a228ceaca5ef8d67c","git_diff_path":"experiment-data/inst-cache/git.diff","data_dir":"experiment-data/inst-cache"}
++{"id":"512-inst-cache","parent_id":"inst-cache","timestamp":"2026-08-25T12:53:45.198596Z","message":"change inst-cache size to 512","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/512-inst-cache/git.diff","data_dir":"experiment-data/512-inst-cache"}
++{"id":"2048-inst-cache","parent_id":"inst-cache","timestamp":"2026-08-25T12:59:03.771554Z","message":"change inst-cache size to 2048","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/2048-inst-cache/git.diff","data_dir":"experiment-data/2048-inst-cache"}

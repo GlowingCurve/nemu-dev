@@ -1,0 +1,45 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 4ab2e39085a452c5e36c84a3c5c64cf82bde6d86..3b1f0c62f75cd2c0f92621b4cc7ac1fb658fade6 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -5,3 +5,5 @@
+ {"id":"refactor_0","parent_id":"device_update","timestamp":"2026-08-25T09:18:09.176864Z","message":"trying to refactor decode_exec","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_0/git.diff","data_dir":"experiment-data/refactor_0"}
+ {"id":"refactor_1","parent_id":"refactor_0","timestamp":"2026-08-25T10:05:39.509702Z","message":"conducting refactor","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_1/git.diff","data_dir":"experiment-data/refactor_1"}
+ {"id":"refactor_final","parent_id":"refactor_1","timestamp":"2026-08-25T12:07:05.437306Z","message":"split decode and excute;before add inst-cache","git_commit":"c42b1e55f029fbc2ddd8747bdfab82c1b178ac31","git_diff_path":"experiment-data/refactor_final/git.diff","data_dir":"experiment-data/refactor_final"}
++{"id":"inst-cache","parent_id":"refactor_final","timestamp":"2026-08-25T12:12:39.214977Z","message":"add inst-cache","git_commit":"55633004731a41bb14a1600a228ceaca5ef8d67c","git_diff_path":"experiment-data/inst-cache/git.diff","data_dir":"experiment-data/inst-cache"}
++{"id":"512-inst-cache","parent_id":"inst-cache","timestamp":"2026-08-25T12:53:45.198596Z","message":"change inst-cache size to 512","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/512-inst-cache/git.diff","data_dir":"experiment-data/512-inst-cache"}
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 31e0ad7bdc5dfa44ebec9697dc32fe1cb719e5c2..e5a1336c8fe03972f6dab21a0d4c6803deceafb5 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -60,7 +60,7 @@ struct Inst {
+ 
+ typedef struct Inst Inst;
+ 
+-Inst inst_cache[1024] = {};
++Inst inst_cache[2048] = {};
+ 
+ #define src1R()                                                                \
+   do {                                                                         \
+@@ -548,7 +548,7 @@ void print_iringbuf() {
+ }
+ 
+ bool is_hitcache(vaddr_t pc) {
+-  if ((inst_cache[(pc & 0xFFF) >> 2].inst_inf.pc) == pc) {
++  if ((inst_cache[(pc & 0x1FFF) >> 2].inst_inf.pc) == pc) {
+     return true;
+   }
+   return false;
+@@ -566,10 +566,10 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+   Inst inst;
+ 
+   if (is_hitcache(pc)) {
+-    inst = inst_cache[(pc & 0xFFF) >> 2];
++    inst = inst_cache[(pc & 0x1FFF) >> 2];
+   } else {
+     inst = decode(pc);
+-    inst_cache[(pc & 0xFFF) >> 2] = inst;
++    inst_cache[(pc & 0x1FFF) >> 2] = inst;
+   }
+   return execute(inst);
+ }

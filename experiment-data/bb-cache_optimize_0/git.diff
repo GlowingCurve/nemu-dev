@@ -1,0 +1,38 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 66ed0e51a8d6e8ec0ef86c06891f50a3c96ae043..728679194e2244716961bcf9a0c6544718bcb0da 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -15,3 +15,4 @@
+ {"id":"mstatus","parent_id":"optimize_instcache_1","timestamp":"2026-08-26T02:24:05.852393Z","message":"remove mstatus write-back","git_commit":"dd17c4daf32635507a7dc7334d361c820ac96298","git_diff_path":"experiment-data/mstatus/git.diff","data_dir":"experiment-data/mstatus"}
+ {"id":"switch_opcode_1","parent_id":"mstatus","timestamp":"2026-08-26T04:45:09.796342Z","message":"add switch+opcode","git_commit":"a3716998e690871cda46512e5aa408753691624b","git_diff_path":"experiment-data/switch_opcode_1/git.diff","data_dir":"experiment-data/switch_opcode_1"}
+ {"id":"decode_operand","parent_id":"switch_opcode_1","timestamp":"2026-08-26T05:51:16.974769Z","message":"remove uselss parameters in decode_operand","git_commit":"fdf2e3d5925f11e9ae294f04b2ff98df82bd7c87","git_diff_path":"experiment-data/decode_operand/git.diff","data_dir":"experiment-data/decode_operand"}
++{"id":"basic_block_cache","parent_id":"decode_operand","timestamp":"2026-08-26T07:17:54.403813Z","message":"introduce basic-block cache","git_commit":"b0f4140a6e83befe1b057e83f5d8c01e1cfd6934","git_diff_path":"experiment-data/basic_block_cache/git.diff","data_dir":"experiment-data/basic_block_cache"}
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 8037103dd13186b72bdbc6d0c999a627c88d4118..4c3bb7dd622138650f279eee37434d404ae20ba0 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -751,12 +751,12 @@ void basicblock_cache_refill(vaddr_t pc) {
+   basicblock_cache[index].count = count;
+ }
+ 
+-vaddr_t basicblock_cache_execute(BasicBlock basicblock) {
+-  unsigned int count = basicblock.count;
++vaddr_t basicblock_cache_execute(BasicBlock *basicblock) {
++  unsigned int count = basicblock->count;
+   for (int i = 0; i < count; i++) {
+-    switch_execution(&basicblock.insts[i]);
++    switch_execution(&basicblock->insts[i]);
+   }
+-  return switch_execution(&basicblock.insts[count]);
++  return switch_execution(&basicblock->insts[count]);
+ }
+ 
+ vaddr_t isa_exec_once(vaddr_t pc) {
+@@ -774,6 +774,6 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+   if (!is_hitcache(pc)) {
+     basicblock_cache_refill(pc);
+   }
+-  vaddr_t dnpc = basicblock_cache_execute(basicblock_cache[index]);
++  vaddr_t dnpc = basicblock_cache_execute(&basicblock_cache[index]);
+   return dnpc;
+ }

@@ -1,0 +1,46 @@
+glowingcurve@fedora44:~/nemu-dev-root/microbench$ make ARCH=riscv32-nemu run
+# Building microbench-run [riscv32-nemu]
+make -C /home/glowingcurve/nemu-dev-root/nemu ISA=riscv32 run ARGS="-l /home/glowingcurve/nemu-dev-root/microbench/build/nemu-log.txt -b " IMG=/home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin
+make[1]: 进入目录“/home/glowingcurve/nemu-dev-root/nemu”
+
+/home/glowingcurve/nemu-dev-root/nemu/build/riscv32-nemu-interpreter -l /home/glowingcurve/nemu-dev-root/microbench/build/nemu-log.txt -b   /home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is /home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:34:12, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 42.0179 ms [10441]
+[queen] Queen placement: * Passed.
+  min time: 85.0568 ms [4755]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 504.0282 ms [3334]
+[fib] Fibonacci number: * Passed.
+  min time: 795.0104 ms [2536]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 909.0132 ms [3830]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 102.0427 ms [5232]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 120.0884 ms [6768]
+[lzip] Lzip compression: * Passed.
+  min time: 138.0634 ms [4901]
+[ssort] Suffix sort: * Passed.
+  min time: 55.08314 ms [7168]
+[md5] MD5 digest: * Passed.
+  min time: 809.0906 ms [1876]
+==================================================
+MicroBench PASS        5084 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3563.0947 ms
+Total  time: 4123.0019 ms
+[src/cpu/cpu-exec.c:152 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:99 statistic] host time spent = 4,123,134 us
+[src/cpu/cpu-exec.c:100 statistic] total guest instructions = 1,850,483,632
+[src/cpu/cpu-exec.c:102 statistic] simulation frequency = 448,805,115 inst/s
+hit cache: 1848929992
+make[1]: 离开目录“/home/glowingcurve/nemu-dev-root/nemu”

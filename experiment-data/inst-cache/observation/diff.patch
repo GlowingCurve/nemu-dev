@@ -1,0 +1,43 @@
+diff --git a/nemu/src/cpu/cpu-exec.c b/nemu/src/cpu/cpu-exec.c
+index 23aa928..691c237 100644
+--- a/nemu/src/cpu/cpu-exec.c
++++ b/nemu/src/cpu/cpu-exec.c
+@@ -28,6 +28,8 @@ CPU_state cpu = {};
+ uint64_t g_nr_guest_inst = 0;
+ static uint64_t g_timer = 0; // unit: us
+ 
++extern uint64_t hit_cache;
++
+ void device_update();
+ int WP_checking();
+ void print_iringbuf();
+@@ -103,6 +105,7 @@ static void statistic() {
+     Log("Finish running in less than 1 us and can not calculate the simulation "
+         "frequency");
+ #endif
++  printf("hit cache: %lu\n", hit_cache);
+ }
+ 
+ void assert_fail_msg() {
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 31e0ad7..a3546b3 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -60,7 +60,8 @@ struct Inst {
+ 
+ typedef struct Inst Inst;
+ 
+-Inst inst_cache[1024] = {};
++static Inst inst_cache[1024] = {};
++uint64_t hit_cache = 0;
+ 
+ #define src1R()                                                                \
+   do {                                                                         \
+@@ -566,6 +567,7 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+   Inst inst;
+ 
+   if (is_hitcache(pc)) {
++    hit_cache++;
+     inst = inst_cache[(pc & 0xFFF) >> 2];
+   } else {
+     inst = decode(pc);

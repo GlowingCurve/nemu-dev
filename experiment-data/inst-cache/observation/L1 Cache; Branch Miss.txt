@@ -1,0 +1,202 @@
+glowingcurve@fedora44:~/nemu-dev-root/nemu$ perf stat -r 5 -e L1-dcache-loads,L1-dcache-load-misses,branches,branch-misses -- ./build/riscv32-nemu-interpreter -b ../microbench/build/microbench-riscv32-nemu.bin
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is ../microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:56:20, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 41.0867 ms [10519]
+[queen] Queen placement: * Passed.
+  min time: 79.0448 ms [5121]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 507.0440 ms [3313]
+[fib] Fibonacci number: * Passed.
+  min time: 804.0011 ms [2508]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 923.0690 ms [3769]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 104.0299 ms [5139]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 121.0202 ms [6750]
+[lzip] Lzip compression: * Passed.
+  min time: 141.0332 ms [4807]
+[ssort] Suffix sort: * Passed.
+  min time: 56.06412 ms [7065]
+[md5] MD5 digest: * Passed.
+  min time: 811.0720 ms [1872]
+==================================================
+MicroBench PASS        5086 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3591.0650 ms
+Total  time: 4160.0773 ms
+[src/cpu/cpu-exec.c:149 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:97 statistic] host time spent = 4,160,898 us
+[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 1,850,483,632
+[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 444,731,793 inst/s
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is ../microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:56:20, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 41.0946 ms [10499]
+[queen] Queen placement: * Passed.
+  min time: 79.0736 ms [5103]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 506.0932 ms [3317]
+[fib] Fibonacci number: * Passed.
+  min time: 795.0286 ms [2535]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 907.0286 ms [3838]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 103.0078 ms [5199]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 119.0932 ms [6822]
+[lzip] Lzip compression: * Passed.
+  min time: 139.0492 ms [4871]
+[ssort] Suffix sort: * Passed.
+  min time: 55.03622 ms [7228]
+[md5] MD5 digest: * Passed.
+  min time: 813.0359 ms [1868]
+==================================================
+MicroBench PASS        5128 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3562.0409 ms
+Total  time: 4124.0746 ms
+[src/cpu/cpu-exec.c:149 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:97 statistic] host time spent = 4,124,866 us
+[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 1,850,483,632
+[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 448,616,665 inst/s
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is ../microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:56:20, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 42.0138 ms [10451]
+[queen] Queen placement: * Passed.
+  min time: 79.0546 ms [5115]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 511.0653 ms [3286]
+[fib] Fibonacci number: * Passed.
+  min time: 794.0627 ms [2538]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 910.0217 ms [3825]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 102.0503 ms [5229]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 121.0363 ms [6741]
+[lzip] Lzip compression: * Passed.
+  min time: 143.0968 ms [4719]
+[ssort] Suffix sort: * Passed.
+  min time: 56.08078 ms [7044]
+[md5] MD5 digest: * Passed.
+  min time: 823.0664 ms [1845]
+==================================================
+MicroBench PASS        5079 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3586.0486 ms
+Total  time: 4153.0697 ms
+[src/cpu/cpu-exec.c:149 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:97 statistic] host time spent = 4,153,801 us
+[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 1,850,483,665
+[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 445,491,650 inst/s
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is ../microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:56:20, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 42.0168 ms [10443]
+[queen] Queen placement: * Passed.
+  min time: 81.0228 ms [5009]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 506.0758 ms [3318]
+[fib] Fibonacci number: * Passed.
+  min time: 795.0378 ms [2535]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 918.0213 ms [3792]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 105.0679 ms [5071]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 121.0573 ms [6730]
+[lzip] Lzip compression: * Passed.
+  min time: 138.0334 ms [4912]
+[ssort] Suffix sort: * Passed.
+  min time: 56.09124 ms [7031]
+[md5] MD5 digest: * Passed.
+  min time: 825.0434 ms [1841]
+==================================================
+MicroBench PASS        5068 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3591.0677 ms
+Total  time: 4160.0073 ms
+[src/cpu/cpu-exec.c:149 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:97 statistic] host time spent = 4,160,181 us
+[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 1,850,483,632
+[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 444,808,442 inst/s
+[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff]
+[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f]
+[src/monitor/monitor.c:66 load_img] The image is ../microbench/build/microbench-riscv32-nemu.bin, size = 27432
+[src/monitor/monitor.c:30 welcome] Trace: OFF
+[src/monitor/monitor.c:36 welcome] Build time: 20:56:20, Aug 25 2026
+Welcome to riscv32-NEMU!
+For help, type "help"
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 41.0831 ms [10528]
+[queen] Queen placement: * Passed.
+  min time: 82.0077 ms [4957]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 505.0559 ms [3326]
+[fib] Fibonacci number: * Passed.
+  min time: 794.0067 ms [2539]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 905.0184 ms [3847]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 102.0396 ms [5234]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 119.0733 ms [6833]
+[lzip] Lzip compression: * Passed.
+  min time: 135.0568 ms [5012]
+[ssort] Suffix sort: * Passed.
+  min time: 55.07218 ms [7182]
+[md5] MD5 digest: * Passed.
+  min time: 827.0067 ms [1837]
+==================================================
+MicroBench PASS        5129 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 3569.0203 ms
+Total  time: 4126.0739 ms
+[src/cpu/cpu-exec.c:149 cpu_exec] nemu: HIT GOOD TRAP at pc = 0x80004de0
+[src/cpu/cpu-exec.c:97 statistic] host time spent = 4,126,852 us
+[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 1,850,483,566
+[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 448,400,758 inst/s
+
+ Performance counter stats for './build/riscv32-nemu-interpreter -b ../microbench/build/microbench-riscv32-nemu.bin' (5 runs):
+
+    45,792,964,670      L1-dcache-loads:u                                                       ( +-  0.02% )
+        14,240,034      L1-dcache-load-misses:u                                                 ( +-  0.28% )
+    15,959,840,089      branches:u                                                              ( +-  0.00% )
+         8,126,891      branch-misses:u                                                         ( +-  1.76% )
+
+       4.170641928 +- 0.007895395 seconds time elapsed  ( +-  0.19% )
+
+

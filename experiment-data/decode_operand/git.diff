@@ -1,0 +1,212 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 4f6f9946cbfbbc196a364703130bdffc2d85ef66..ff2ce463597f12f70eb603c3ec36f023ef4f78c8 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -13,3 +13,4 @@
+ {"id":"optimize_instcache_1","parent_id":"rt_off","timestamp":"2026-08-25T14:09:32.714331Z","message":"try to optimize_instcache","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/optimize_instcache_1/git.diff","data_dir":"experiment-data/optimize_instcache_1"}
+ {"id":"swtich_opcode","parent_id":"optimize_instcache_1","timestamp":"2026-08-25T14:54:55.695016Z","message":"add switch_opcode logic to inline functions","git_commit":"38a06ca71c9854a2c6764d584d62b5bfd0c153f2","git_diff_path":"experiment-data/swtich_opcode/git.diff","data_dir":"experiment-data/swtich_opcode"}
+ {"id":"mstatus","parent_id":"optimize_instcache_1","timestamp":"2026-08-26T02:24:05.852393Z","message":"remove mstatus write-back","git_commit":"dd17c4daf32635507a7dc7334d361c820ac96298","git_diff_path":"experiment-data/mstatus/git.diff","data_dir":"experiment-data/mstatus"}
++{"id":"switch_opcode_1","parent_id":"mstatus","timestamp":"2026-08-26T04:45:09.796342Z","message":"add switch+opcode","git_commit":"a3716998e690871cda46512e5aa408753691624b","git_diff_path":"experiment-data/switch_opcode_1/git.diff","data_dir":"experiment-data/switch_opcode_1"}
+diff --git a/nemu/src/isa/riscv32/include/isa-def.h b/nemu/src/isa/riscv32/include/isa-def.h
+index 92e36c8c31ca72a6fe066cd6a80a7bb9151096aa..2ce579c6b1dc590486829081560ba46d7ef52dc7 100644
+--- a/nemu/src/isa/riscv32/include/isa-def.h
++++ b/nemu/src/isa/riscv32/include/isa-def.h
+@@ -1,17 +1,17 @@
+ /***************************************************************************************
+-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+-*
+-* NEMU is licensed under Mulan PSL v2.
+-* You can use this software according to the terms and conditions of the Mulan PSL v2.
+-* You may obtain a copy of Mulan PSL v2 at:
+-*          http://license.coscl.org.cn/MulanPSL2
+-*
+-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+-*
+-* See the Mulan PSL v2 for more details.
+-***************************************************************************************/
++ * Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++ *
++ * NEMU is licensed under Mulan PSL v2.
++ * You can use this software according to the terms and conditions of the Mulan
++ * PSL v2. You may obtain a copy of Mulan PSL v2 at:
++ *          http://license.coscl.org.cn/MulanPSL2
++ *
++ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
++ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
++ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++ *
++ * See the Mulan PSL v2 for more details.
++ ***************************************************************************************/
+ 
+ #ifndef __ISA_RISCV_H__
+ #define __ISA_RISCV_H__
+@@ -20,9 +20,9 @@
+ #include <common.h>
+ 
+ typedef struct {
+-  word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
++  word_t gpr[MUXDEF(CONFIG_RVE, 16, 33)];
+   vaddr_t pc;
+-  word_t csr[32]; //machine-level CSR addresses
++  word_t csr[32];  // machine-level CSR addresses
+   word_t csr_t[2]; // just for difftest
+ } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
+ 
+@@ -33,7 +33,7 @@ typedef struct {
+ 
+ #define isa_mmu_check(vaddr, len, type) (MMU_DIRECT)
+ 
+-//CSR_Enum_Addr
++// CSR_Enum_Addr
+ enum {
+   mstatus_addr = 0x300,
+   mcause_addr = 0x342,
+@@ -41,11 +41,6 @@ enum {
+   mtvec_addr = 0x305
+ };
+ 
+-//CSR_Enum_Index
+-enum {
+-  mstatus_idx = 5,
+-  mcause_idx = 16,
+-  mepc_idx = 15,
+-  mtvec_idx = 10
+-};
++// CSR_Enum_Index
++enum { mstatus_idx = 5, mcause_idx = 16, mepc_idx = 15, mtvec_idx = 10 };
+ #endif
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 9cd09e6bd247ab614ef4d11dc7c816f8db06b236..21f23392171986654033b0cc4b2dd6ba16a627de 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -126,27 +126,27 @@ Inst inst_cache[1024] = {};
+   } while (0)
+ #define immI()                                                                 \
+   do {                                                                         \
+-    *imm = SEXT(BITS(i, 31, 20), 12);                                          \
++    imm = SEXT(BITS(i, 31, 20), 12);                                           \
+   } while (0)
+ #define immU()                                                                 \
+   do {                                                                         \
+-    *imm = SEXT(BITS(i, 31, 12), 20) << 12;                                    \
++    imm = SEXT(BITS(i, 31, 12), 20) << 12;                                     \
+   } while (0)
+ #define immS()                                                                 \
+   do {                                                                         \
+-    *imm = (SEXT(BITS(i, 31, 25), 7) << 5) | BITS(i, 11, 7);                   \
++    imm = (SEXT(BITS(i, 31, 25), 7) << 5) | BITS(i, 11, 7);                    \
+   } while (0)
+ #define immJ()                                                                 \
+   do {                                                                         \
+-    *imm = SEXT(((BITS(i, 31, 31) << 20) + (BITS(i, 19, 12) << 12) +           \
+-                 (BITS(i, 20, 20) << 11) + (BITS(i, 30, 21) << 1)),            \
+-                21);                                                           \
++    imm = SEXT(((BITS(i, 31, 31) << 20) + (BITS(i, 19, 12) << 12) +            \
++                (BITS(i, 20, 20) << 11) + (BITS(i, 30, 21) << 1)),             \
++               21);                                                            \
+   } while (0)
+ #define immB()                                                                 \
+   do {                                                                         \
+-    *imm = SEXT(((BITS(i, 31, 31) << 12) + (BITS(i, 30, 25) << 5) +            \
+-                 (BITS(i, 11, 8) << 1) + (BITS(i, 7, 7) << 11)),               \
+-                13);                                                           \
++    imm = SEXT(((BITS(i, 31, 31) << 12) + (BITS(i, 30, 25) << 5) +             \
++                (BITS(i, 11, 8) << 1) + (BITS(i, 7, 7) << 11)),                \
++               13);                                                            \
+   } while (0)
+ #define csrR()                                                                 \
+   do {                                                                         \
+@@ -452,24 +452,25 @@ static inline vaddr_t invalid(InstInf inst_inf) {
+   return inst_inf.pc + 4; // shouldn't get here
+ }
+ 
+-static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
+-                           word_t *src2, InstInf *inst_inf, word_t *imm,
+-                           int type) {
++static void decode_operand(Decode *s, vaddr_t pc, InstInf *inst_inf, int type) {
+   uint32_t i = s->isa.inst;
+-  int rs1 = BITS(i, 19, 15);
+-  int rs2 = BITS(i, 24, 20);
+-  *rd = BITS(i, 11, 7);
++  inst_inf->rs1 = BITS(i, 19, 15);
++  inst_inf->rs2 = BITS(i, 24, 20);
++  uint8_t rd = BITS(i, 11, 7);
++  if (rd == 0) {
++    rd = 32;
++  }
++  inst_inf->rd = rd;
++  inst_inf->pc = pc;
++  uint32_t imm = 0;
+   switch (type) {
+   case TYPE_I:
+-    src1R();
+     immI();
+     break;
+   case TYPE_U:
+     immU();
+     break;
+   case TYPE_S:
+-    src1R();
+-    src2R();
+     immS();
+     break;
+   case TYPE_N:
+@@ -478,26 +479,19 @@ static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
+     immJ();
+     break;
+   case TYPE_R:
+-    src1R();
+-    src2R();
+     break;
+   case TYPE_B:
+-    src1R();
+-    src2R();
+     immB();
+     break;
+   default:
+     panic("unsupported type = %d", type);
+   }
+-  inst_inf->rd = *rd;
+-  inst_inf->imm = *imm;
+-  inst_inf->rs1 = rs1;
+-  inst_inf->rs2 = rs2;
+-  inst_inf->pc = pc;
++  inst_inf->imm = imm;
+ }
+ 
+ static Inst decode(vaddr_t pc) {
+-  Decode *s = malloc(sizeof(Decode));
++  Decode root = {};
++  Decode *s = &root;
+   s->isa.inst = vaddr_ifetch(pc, 4);
+ 
+   Inst inst;
+@@ -507,10 +501,7 @@ static Inst decode(vaddr_t pc) {
+ #define INSTPAT_INST(s) ((s)->isa.inst)
+ #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
+   {                                                                            \
+-    int rd = 0;                                                                \
+-    word_t src1 = 0, src2 = 0, imm = 0;                                        \
+-    decode_operand(s, pc, &rd, &src1, &src2, &inst_inf, &imm,                  \
+-                   concat(TYPE_, type));                                       \
++    decode_operand(s, pc, &inst_inf, concat(TYPE_, type));                     \
+     __VA_ARGS__;                                                               \
+   }
+ 
+@@ -579,7 +570,6 @@ static Inst decode(vaddr_t pc) {
+ 
+   inst.inst_inf = inst_inf;
+   inst.opcode = opcode;
+-  free(s);
+ 
+   return inst;
+ }
+@@ -731,6 +721,5 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+     *inst = decode(pc);
+   }
+   vaddr_t dnpc = switch_execution(inst);
+-  R(0) = 0;
+   return dnpc;
+ }

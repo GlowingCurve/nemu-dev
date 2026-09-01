@@ -1,0 +1,51 @@
+make: 进入目录“/home/glowingcurve/nemu-dev-root/microbench”
+# Building microbench-run [riscv32-nemu]
+make -C /home/glowingcurve/nemu-dev-root/nemu ISA=riscv32 run ARGS="-l /home/glowingcurve/nemu-dev-root/microbench/build/nemu-log.txt -b " IMG=/home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin
+make[1]: 进入目录“/home/glowingcurve/nemu-dev-root/nemu”
+/home/glowingcurve/nemu-dev-root/nemu/build/riscv32-nemu-interpreter -l /home/glowingcurve/nemu-dev-root/microbench/build/nemu-log.txt -b   /home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin
+======= Running MicroBench [input *ref*] =======
+[qsort] Quick sort: * Passed.
+  min time: 75.0504 ms [5832]
+[queen] Queen placement: * Passed.
+  min time: 96.0894 ms [4199]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 1165.0580 ms [1442]
+[fib] Fibonacci number: * Passed.
+  min time: 941.09260 ms [2141]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 1146.0577 ms [3037]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 179.08617 ms [2980]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 196.00037 ms [4174]
+[lzip] Lzip compression: * Passed.
+  min time: 221.01227 ms [3072]
+[ssort] Suffix sort: * Passed.
+  min time: 74.092827 ms [5341]
+[md5] MD5 digest: * Passed.
+  min time: 918.02397 ms [1655]
+==================================================
+MicroBench PASS        3387 Marks
+                   vs. 100000 Marks (i9-9900K @ 3.60GHz)
+Scored time: 5016.0634 ms
+Total  time: 5759.0260 ms
+[1;34m[src/memory/paddr.c:52 init_mem] physical memory area [0x80000000, 0x87ffffff][0m
+[1;34m[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'serial' at [0xa00003f8, 0xa00003ff][0m
+[1;34m[src/device/io/mmio.c:51 add_mmio_map] Add mmio map 'rtc' at [0xa0000048, 0xa000004f][0m
+[1;34m[src/monitor/monitor.c:66 load_img] The image is /home/glowingcurve/nemu-dev-root/microbench/build/microbench-riscv32-nemu.bin, size = 27432[0m
+[1;34m[src/monitor/monitor.c:30 welcome] Trace: [1;31mOFF[0m[0m
+[1;34m[src/monitor/monitor.c:36 welcome] Build time: 14:58:29, Aug 26 2026[0m
+Welcome to [1;33m[1;41mriscv32[0m-NEMU!
+For help, type "help"
+[1;34m[src/cpu/cpu-exec.c:149 cpu_exec] nemu: [1;32mHIT GOOD TRAP[0m at pc = 0x80004de0[0m
+[1;34m[src/cpu/cpu-exec.c:97 statistic] host time spent = 5,759,522 us[0m
+[1;34m[src/cpu/cpu-exec.c:98 statistic] total guest instructions = 291,305,083[0m
+[1;34m[src/cpu/cpu-exec.c:100 statistic] simulation frequency = 50,577,996 inst/s[0m
+make[1]: 离开目录“/home/glowingcurve/nemu-dev-root/nemu”
+make: 离开目录“/home/glowingcurve/nemu-dev-root/microbench”
+76363270075;;instructions:u;5825932207;100.00;;
+23384503881;;cycles:u;5825932207;100.00;;
+17189192105;;branches:u;5825932207;100.00;;
+18208379;;branch-misses:u;5825932207;100.00;;
+
+Average CPU8 frequency: 4047.73 MHz (59 samples)

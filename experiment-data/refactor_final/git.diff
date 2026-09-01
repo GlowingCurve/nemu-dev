@@ -1,0 +1,96 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 1f6a43acb67012e5735afc8e86f5eba88626c0ca..4b7563267b3a3e3fa1c75d030313789119bfe347 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -2,3 +2,5 @@
+ {"id":"lto","parent_id":"O2","timestamp":"2026-08-24T13:09:46.553643Z","message":"add flto","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/lto/git.diff","data_dir":"experiment-data/lto"}
+ {"id":"O3","parent_id":"lto","timestamp":"2026-08-24T13:23:59.717544Z","message":"03 optimization","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/O3/git.diff","data_dir":"experiment-data/O3"}
+ {"id":"device_update","parent_id":"O3","timestamp":"2026-08-24T14:10:01.211507Z","message":"remove device_update from execution","git_commit":"57d0cb5bf1b5ba74e00ce26c43a007520e9a819f","git_diff_path":"experiment-data/device_update/git.diff","data_dir":"experiment-data/device_update"}
++{"id":"refactor_0","parent_id":"device_update","timestamp":"2026-08-25T09:18:09.176864Z","message":"trying to refactor decode_exec","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_0/git.diff","data_dir":"experiment-data/refactor_0"}
++{"id":"refactor_1","parent_id":"refactor_0","timestamp":"2026-08-25T10:05:39.509702Z","message":"conducting refactor","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_1/git.diff","data_dir":"experiment-data/refactor_1"}
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 5efffbed32dcd334b2795ee155191ad7b497e8b6..067cfd29cc9fd304f3187fa2670915145c786bbd 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -53,6 +53,15 @@ struct InstInf {
+ 
+ typedef struct InstInf InstInf;
+ 
++struct Inst {
++  InstInf inst_inf;
++  vaddr_t (*handler)(InstInf);
++};
++
++typedef struct Inst Inst;
++
++Inst inst_cache[1024] = {};
++
+ #define src1R()                                                                \
+   do {                                                                         \
+     *src1 = R(rs1);                                                            \
+@@ -433,12 +442,13 @@ static void decode_operand(Decode *s, vaddr_t pc, int *rd, word_t *src1,
+   inst_inf->pc = pc;
+ }
+ 
+-static vaddr_t decode_exec(vaddr_t pc) {
++static Inst decode(vaddr_t pc) {
+   Decode *s = malloc(sizeof(Decode));
+   s->isa.inst = vaddr_ifetch(pc, 4);
++
++  Inst inst;
+   InstInf inst_inf = {};
+   vaddr_t (*handler)(InstInf) = invalid;
+-  vaddr_t dnpc = pc + 4;
+ 
+ #define INSTPAT_INST(s) ((s)->isa.inst)
+ #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
+@@ -506,11 +516,17 @@ static vaddr_t decode_exec(vaddr_t pc) {
+   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N, handler = invalid);
+   INSTPAT_END();
+ 
+-  dnpc = handler(inst_inf);
++  inst.inst_inf = inst_inf;
++  inst.handler = handler;
++  free(s);
++
++  return inst;
++}
+ 
++static vaddr_t execute(Inst inst) {
++  vaddr_t dnpc = inst.handler(inst.inst_inf);
+   R(0) = 0; // reset $zero to 0
+   CSR(mstatus_addr) = 0x1800;
+-  free(s);
+   return dnpc;
+ }
+ 
+@@ -531,6 +547,13 @@ void print_iringbuf() {
+   printf("--- IRINGBUF END ---\n");
+ }
+ 
++bool is_hitcache(vaddr_t pc) {
++  if ((inst_cache[(pc & 0xFFF) >> 2].inst_inf.pc) == pc) {
++    return true;
++  }
++  return false;
++}
++
+ vaddr_t isa_exec_once(vaddr_t pc) {
+ #ifdef CONFIG_ITRACE
+   inst_count++;
+@@ -540,5 +563,14 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+ #ifdef CONFIG_FTRACE
+   ftrace(s->isa.inst, s->pc);
+ #endif
+-  return decode_exec(pc);
++  Inst inst;
++  /*
++  if (is_hitcache(pc)) {
++    inst = inst_cache[(pc & 0xFFF) >> 2];
++  } else {
++    inst = decode(pc);
++    inst_cache[(pc & 0xFFF) >> 2] = inst;
++  }*/
++  inst = decode(pc);
++  return execute(inst);
+ }

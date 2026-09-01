@@ -1,0 +1,33 @@
+diff --git a/nemu/src/isa/riscv32/init.c b/nemu/src/isa/riscv32/init.c
+index 4a066cdc9f04ea2ee3abfa9a0e446edd906ffc46..dc4d9cdf22d04e26fb6f7ea26a4da3df495888c7 100644
+--- a/nemu/src/isa/riscv32/init.c
++++ b/nemu/src/isa/riscv32/init.c
+@@ -29,7 +29,7 @@ static const uint32_t img[] = {
+ static void restart() {
+   /* Set the initial program counter. */
+   cpu.pc = RESET_VECTOR;
+-
++  csr(mstatus_addr) = 0x1800;
+   /* The zero register is always 0. */
+   cpu.gpr[0] = 0;
+ }
+@@ -37,7 +37,6 @@ static void restart() {
+ void init_isa() {
+   /* Load built-in image. */
+   memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
+-  // csr(mstatus_addr) = 0x1800;
+   /* Initialize this virtual computer system. */
+   restart();
+ }
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 12096ff2822ab26a53f3edda500b060df4a296b5..a0aca14cb655a039f162ab0d6fdec78a4d52f0fa 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -570,6 +570,6 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+   }
+   vaddr_t dnpc = inst->handler(inst->inst_inf);
+   R(0) = 0;
+-  CSR(mstatus_addr) = 0x1800;
++  // CSR(mstatus_addr) = 0x1800;
+   return dnpc;
+ }

@@ -1,0 +1,10 @@
+diff --git a/scripts/_config.py b/scripts/_config.py
+index a2ab3c27a7586475a4265b8fdaa2017f76530b1f..3ef75d34f1caae399301eb17ee905c2f944a890a 100644
+--- a/scripts/_config.py
++++ b/scripts/_config.py
+@@ -2,4 +2,4 @@
+ 
+ # Edit these values to select the architecture and log data type.
+ ARCH = "riscv32-nemu"
+-LOG_TYPE = "real"
++LOG_TYPE = "single"

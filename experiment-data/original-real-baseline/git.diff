@@ -1,0 +1,6 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 1901b58f9c20322e4ad34ed05acd3350eda3ecb1..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -1 +0,0 @@
+-{"id":"baseline-test","parent_id":null,"message":"baseline-test","git_commit":"09f23caa9187e97adf64d9a01842a4308b6ad968","git_diff_path":"experiment-data/baseline-test/git.diff","data_dir":"experiment-data/baseline-test"}

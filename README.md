@@ -9,14 +9,19 @@
 ### nemu编译
 
 进入nemu目录
-```
+
+```bash
 cd nemu
 ```
 
 运行如下命令
-```
+
+```bash
+
 make clean
+
 make
+
 ```
 
 ### microbench编译
@@ -25,19 +30,19 @@ make
 
 以ref规模编译microbench
 
-```
+```bash
 make ARCH=riscv32-nemu mainargs=ref
 ```
 
 如果想要以huge规模编译microbench
 
-```
+```bash
 make ARCH=riscv32-nemu mainargs=huge
 ```
 
 然后进行跑分
 
-```
+```bash
 make ARCH=riscv32-nemu run 
 ```
 
@@ -52,3 +57,7 @@ explog下是explog实验日志管理工具的源码，见README.md
 explog.toml是explog的配置文件
 
 experiments.jsonl是实验日志文件
+
+### experiment-data
+
+这些是原始实验数据和处理后的数据，其中的perf.data不保证可用

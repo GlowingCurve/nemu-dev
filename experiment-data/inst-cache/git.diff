@@ -1,0 +1,20 @@
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 067cfd29cc9fd304f3187fa2670915145c786bbd..31e0ad7bdc5dfa44ebec9697dc32fe1cb719e5c2 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -564,13 +564,12 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+   ftrace(s->isa.inst, s->pc);
+ #endif
+   Inst inst;
+-  /*
++
+   if (is_hitcache(pc)) {
+     inst = inst_cache[(pc & 0xFFF) >> 2];
+   } else {
+     inst = decode(pc);
+     inst_cache[(pc & 0xFFF) >> 2] = inst;
+-  }*/
+-  inst = decode(pc);
++  }
+   return execute(inst);
+ }

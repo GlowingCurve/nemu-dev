@@ -1,0 +1,118 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 4ab2e39085a452c5e36c84a3c5c64cf82bde6d86..504245326e9d587693293eadb61bf3db8ae957be 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -5,3 +5,8 @@
+ {"id":"refactor_0","parent_id":"device_update","timestamp":"2026-08-25T09:18:09.176864Z","message":"trying to refactor decode_exec","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_0/git.diff","data_dir":"experiment-data/refactor_0"}
+ {"id":"refactor_1","parent_id":"refactor_0","timestamp":"2026-08-25T10:05:39.509702Z","message":"conducting refactor","git_commit":"2acdc65f94d84fca596a863c184696886b93d822","git_diff_path":"experiment-data/refactor_1/git.diff","data_dir":"experiment-data/refactor_1"}
+ {"id":"refactor_final","parent_id":"refactor_1","timestamp":"2026-08-25T12:07:05.437306Z","message":"split decode and excute;before add inst-cache","git_commit":"c42b1e55f029fbc2ddd8747bdfab82c1b178ac31","git_diff_path":"experiment-data/refactor_final/git.diff","data_dir":"experiment-data/refactor_final"}
++{"id":"inst-cache","parent_id":"refactor_final","timestamp":"2026-08-25T12:12:39.214977Z","message":"add inst-cache","git_commit":"55633004731a41bb14a1600a228ceaca5ef8d67c","git_diff_path":"experiment-data/inst-cache/git.diff","data_dir":"experiment-data/inst-cache"}
++{"id":"512-inst-cache","parent_id":"inst-cache","timestamp":"2026-08-25T12:53:45.198596Z","message":"change inst-cache size to 512","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/512-inst-cache/git.diff","data_dir":"experiment-data/512-inst-cache"}
++{"id":"2048-inst-cache","parent_id":"inst-cache","timestamp":"2026-08-25T12:59:03.771554Z","message":"change inst-cache size to 2048","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/2048-inst-cache/git.diff","data_dir":"experiment-data/2048-inst-cache"}
++{"id":"rt_off","parent_id":"inst-cache","timestamp":"2026-08-25T13:45:55.185797Z","message":"turn off runtime check","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/rt_off/git.diff","data_dir":"experiment-data/rt_off"}
++{"id":"optimize_instcache_0","parent_id":"rt_off","timestamp":"2026-08-25T14:01:18.395196Z","message":"try to optimize_instcache","git_commit":"30445c52bc1145887ef98b7856d51e2be4df82f2","git_diff_path":"experiment-data/optimize_instcache_0/git.diff","data_dir":"experiment-data/optimize_instcache_0"}
+diff --git a/nemu/src/isa/riscv32/init.c b/nemu/src/isa/riscv32/init.c
+index 5e67219cb70e191a876d2f165a462f19a27963bb..4a066cdc9f04ea2ee3abfa9a0e446edd906ffc46 100644
+--- a/nemu/src/isa/riscv32/init.c
++++ b/nemu/src/isa/riscv32/init.c
+@@ -1,29 +1,29 @@
+ /***************************************************************************************
+-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
+-*
+-* NEMU is licensed under Mulan PSL v2.
+-* You can use this software according to the terms and conditions of the Mulan PSL v2.
+-* You may obtain a copy of Mulan PSL v2 at:
+-*          http://license.coscl.org.cn/MulanPSL2
+-*
+-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+-*
+-* See the Mulan PSL v2 for more details.
+-***************************************************************************************/
++ * Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++ *
++ * NEMU is licensed under Mulan PSL v2.
++ * You can use this software according to the terms and conditions of the Mulan
++ * PSL v2. You may obtain a copy of Mulan PSL v2 at:
++ *          http://license.coscl.org.cn/MulanPSL2
++ *
++ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
++ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
++ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++ *
++ * See the Mulan PSL v2 for more details.
++ ***************************************************************************************/
+ 
++#include "local-include/reg.h"
+ #include <isa.h>
+ #include <memory/paddr.h>
+-
+ // this is not consistent with uint8_t
+ // but it is ok since we do not access the array directly
+-static const uint32_t img [] = {
+-  0x00000297,  // auipc t0,0
+-  0x00028823,  // sb  zero,16(t0)
+-  0x0102c503,  // lbu a0,16(t0)
+-  0x00100073,  // ebreak (used as nemu_trap)
+-  0xdeadbeef,  // some data
++static const uint32_t img[] = {
++    0x00000297, // auipc t0,0
++    0x00028823, // sb  zero,16(t0)
++    0x0102c503, // lbu a0,16(t0)
++    0x00100073, // ebreak (used as nemu_trap)
++    0xdeadbeef, // some data
+ };
+ 
+ static void restart() {
+@@ -37,7 +37,7 @@ static void restart() {
+ void init_isa() {
+   /* Load built-in image. */
+   memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
+-
++  // csr(mstatus_addr) = 0x1800;
+   /* Initialize this virtual computer system. */
+   restart();
+ }
+diff --git a/nemu/src/isa/riscv32/inst.c b/nemu/src/isa/riscv32/inst.c
+index 31e0ad7bdc5dfa44ebec9697dc32fe1cb719e5c2..12096ff2822ab26a53f3edda500b060df4a296b5 100644
+--- a/nemu/src/isa/riscv32/inst.c
++++ b/nemu/src/isa/riscv32/inst.c
+@@ -522,14 +522,14 @@ static Inst decode(vaddr_t pc) {
+ 
+   return inst;
+ }
+-
++/*
+ static vaddr_t execute(Inst inst) {
+   vaddr_t dnpc = inst.handler(inst.inst_inf);
+   R(0) = 0; // reset $zero to 0
+   CSR(mstatus_addr) = 0x1800;
+   return dnpc;
+ }
+-
++*/
+ void print_iringbuf() {
+   printf("--- IRINGBUF BEGIN ---\n");
+ 
+@@ -563,13 +563,13 @@ vaddr_t isa_exec_once(vaddr_t pc) {
+ #ifdef CONFIG_FTRACE
+   ftrace(s->isa.inst, s->pc);
+ #endif
+-  Inst inst;
++  Inst *inst = &inst_cache[(pc & 0xFFF) >> 2];
+ 
+-  if (is_hitcache(pc)) {
+-    inst = inst_cache[(pc & 0xFFF) >> 2];
+-  } else {
+-    inst = decode(pc);
+-    inst_cache[(pc & 0xFFF) >> 2] = inst;
++  if (!is_hitcache(pc)) {
++    *inst = decode(pc);
+   }
+-  return execute(inst);
++  vaddr_t dnpc = inst->handler(inst->inst_inf);
++  R(0) = 0;
++  CSR(mstatus_addr) = 0x1800;
++  return dnpc;
+ }

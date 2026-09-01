@@ -1,0 +1,1 @@
+-O2 -MMD -Wall -Werror -fPIE -I/home/glowingcurve/nemu-dev-root/nemu/include -I/home/glowingcurve/nemu-dev-root/nemu/src/engine/interpreter -I/home/glowingcurve/nemu-dev-root/nemu/src/isa/riscv32/include -O3  -Og -ggdb3  -DITRACE_COND=true -D__GUEST_ISA__=riscv32

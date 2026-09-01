@@ -1,0 +1,21 @@
+diff --git a/experiments.jsonl b/experiments.jsonl
+index 75ef918389e4f5b50344e152a996451e7d40304d..ed2376d3f3c66db63cc4a7e9f6d99ecd2564af8c 100644
+--- a/experiments.jsonl
++++ b/experiments.jsonl
+@@ -1 +1,3 @@
+ {"id":"O2","parent_id":null,"timestamp":"2026-08-24T12:22:55.422909Z","message":"enable O2","git_commit":"c2032eac7fb3aabcac6b5d0380a55243f9d55d35","git_diff_path":"experiment-data/O2/git.diff","data_dir":"experiment-data/O2"}
++{"id":"lto","parent_id":"O2","timestamp":"2026-08-24T13:09:46.553643Z","message":"add flto","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/lto/git.diff","data_dir":"experiment-data/lto"}
++{"id":"O3","parent_id":"lto","timestamp":"2026-08-24T13:23:59.717544Z","message":"03 optimization","git_commit":"522d8a663bf66f0abaa8dbd16e73eae2b890db6d","git_diff_path":"experiment-data/O3/git.diff","data_dir":"experiment-data/O3"}
+diff --git a/nemu/src/cpu/cpu-exec.c b/nemu/src/cpu/cpu-exec.c
+index 4eabd1443d22f615f9a4735f4416acefe2e4e245..d7fc6357357c09998cdecccbd856380344d6af9c 100644
+--- a/nemu/src/cpu/cpu-exec.c
++++ b/nemu/src/cpu/cpu-exec.c
+@@ -88,7 +88,7 @@ static void execute(uint64_t n) {
+     trace_and_difftest(&s, cpu.pc);
+     if (nemu_state.state != NEMU_RUNNING)
+       break;
+-    IFDEF(CONFIG_DEVICE, device_update());
++    // IFDEF(CONFIG_DEVICE, device_update());
+   }
+ }
+ 
