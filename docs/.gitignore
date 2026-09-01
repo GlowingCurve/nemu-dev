@@ -1,0 +1,10 @@
+*.svg
+*.png
+*.pdf
+!overview.png
+!pc_times.png
+!blog.pdf
+gpt-report.typ
+report.typ
+!blog.typ
+!template.typ
